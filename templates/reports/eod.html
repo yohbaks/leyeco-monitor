@@ -1,0 +1,270 @@
+{% extends "base/base.html" %}
+{% block title %}EOD Reconciliation — LEYECO Monitor{% endblock %}
+{% block page_title %}End-of-Day Reconciliation{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-7">
+
+    <!-- Status banner -->
+    {% if eod.status == 'closed' %}
+    <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+      <i class="bi bi-lock-fill fs-5"></i>
+      <div>
+        <strong>Day closed</strong> — EOD for {{ today|date:"F j, Y" }} was locked by
+        {{ eod.closed_by.get_full_name|default:eod.closed_by.username }} at {{ eod.closed_at|time:"g:i A" }}.
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Today's summary -->
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-calculator me-2"></i>Today's System Totals — {{ today|date:"F j, Y" }}</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Transactions</div>
+              <div class="kpi-value">{{ summary.txn_count }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Collected</div>
+              <div class="kpi-value" style="font-size:20px;">₱{{ summary.total_collected|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Service Fees</div>
+              <div class="kpi-value" style="font-size:20px;color:#16a34a;">₱{{ summary.total_fees|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">LEYECO Remittance</div>
+              <div class="kpi-value" style="font-size:20px;">₱{{ summary.total_bill|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Cash In</div>
+              <div class="kpi-value" style="font-size:20px;">₱{{ summary.total_cash_in|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Change Given</div>
+              <div class="kpi-value" style="font-size:20px;">₱{{ summary.total_change|floatformat:2 }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 p-3 rounded" style="background:#f0f9ff;border:1px solid #bae6fd;">
+          <div class="d-flex justify-content-between" style="font-size:13.5px;">
+            <span style="color:#0369a1;font-weight:600;">Expected Cash On Hand</span>
+            <span style="font-size:18px;font-weight:700;color:#0369a1;" id="expected-cash">
+              ₱{{ summary.total_collected|floatformat:2 }}
+            </span>
+          </div>
+          <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+            Total Collected — this is what should be in the cash drawer
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Teller breakdown -->
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-people me-2"></i>Teller Collections</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Teller</th>
+              <th class="text-end">Txns</th>
+              <th class="text-end">Collected</th>
+              <th class="text-end">Fees</th>
+              <th class="text-end">LEYECO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tellers %}
+            <tr>
+              <td class="ps-3 fw-500">{{ t.teller_name }}</td>
+              <td class="text-end">{{ t.count }}</td>
+              <td class="text-end">₱{{ t.total_collected|floatformat:2 }}</td>
+              <td class="text-end" style="color:#16a34a;">₱{{ t.total_fees|floatformat:2 }}</td>
+              <td class="text-end">₱{{ t.total_bill|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-4 text-muted">No transactions today.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Declare cash form -->
+    {% if eod.status == 'open' %}
+    <div class="card border-warning">
+      <div class="card-header bg-warning text-dark">
+        <i class="bi bi-cash-coin me-2"></i>Declare Cash On Hand &amp; Close Day
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-600">Actual Cash in Drawer (₱)</label>
+            <input type="number" name="declared_cash" id="declared_cash" step="0.01" min="0"
+                   class="form-control form-control-lg" placeholder="0.00"
+                   style="font-size:24px;font-weight:700;text-align:center;"
+                   oninput="calcDiscrepancy(this.value)">
+            <div class="form-text">Count all cash in the drawer and enter the exact total.</div>
+          </div>
+
+          <!-- Live discrepancy indicator -->
+          <div id="discrepancy-panel" class="p-3 rounded mb-3" style="background:#f9fafb;border:1.5px solid #e5e7eb;display:none;">
+            <div class="d-flex justify-content-between mb-1" style="font-size:13.5px;">
+              <span style="color:#6b7280;">Expected</span>
+              <span id="disc-expected" style="font-weight:600;">₱{{ summary.total_collected|floatformat:2 }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1" style="font-size:13.5px;">
+              <span style="color:#6b7280;">Declared</span>
+              <span id="disc-declared" style="font-weight:600;">₱0.00</span>
+            </div>
+            <div class="d-flex justify-content-between" style="font-size:15px;border-top:1px solid #e5e7eb;padding-top:8px;margin-top:4px;">
+              <span style="font-weight:700;">Discrepancy</span>
+              <span id="disc-amount" style="font-weight:700;font-size:18px;">₱0.00</span>
+            </div>
+            <div id="disc-msg" class="mt-2" style="font-size:12px;text-align:center;"></div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-600">Notes (Optional)</label>
+            <textarea name="notes" class="form-control" rows="2"
+                      placeholder="Any remarks, explanations for discrepancies..."></textarea>
+          </div>
+
+          <div class="d-flex gap-3 align-items-center">
+            <button type="submit" class="btn btn-danger btn-lg px-4"
+               onclick="return confirm('Close EOD for {% now "N j, Y" %}? This cannot be undone.')">
+              <i class="bi bi-lock me-2"></i>Close Day
+            </button>
+            <span style="font-size:12px;color:#9ca3af;">This action is permanent and logged.</span>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- Closed EOD summary -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-check-circle me-2"></i>EOD Summary</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <div style="font-size:12px;color:#6b7280;">Expected Cash</div>
+            <div style="font-size:20px;font-weight:700;">₱{{ eod.total_collected|floatformat:2 }}</div>
+          </div>
+          <div class="col-6">
+            <div style="font-size:12px;color:#6b7280;">Declared Cash</div>
+            <div style="font-size:20px;font-weight:700;">₱{{ eod.declared_cash|floatformat:2 }}</div>
+          </div>
+          <div class="col-12">
+            <div style="font-size:12px;color:#6b7280;">Discrepancy</div>
+            <div style="font-size:28px;font-weight:700;
+              color:{% if eod.discrepancy < 0 %}#dc2626{% elif eod.discrepancy > 0 %}#16a34a{% else %}#6b7280{% endif %};">
+              {% if eod.discrepancy > 0 %}+{% endif %}₱{{ eod.discrepancy|floatformat:2 }}
+              {% if eod.discrepancy == 0 %}<span style="font-size:14px;">✓ Balanced</span>{% endif %}
+              {% if eod.discrepancy < 0 %}<span style="font-size:14px;">⚠ Shortage</span>{% endif %}
+              {% if eod.discrepancy > 0 %}<span style="font-size:14px;">↑ Overage</span>{% endif %}
+            </div>
+          </div>
+          {% if eod.notes %}
+          <div class="col-12">
+            <div style="font-size:12px;color:#6b7280;">Notes</div>
+            <div style="font-size:13.5px;">{{ eod.notes }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Right: Today's transactions quick list -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-list-ul me-2"></i>Today's Transactions</div>
+      <div class="card-body p-0" style="max-height:600px;overflow-y:auto;">
+        <table class="table table-hover mb-0">
+          <thead class="table-light" style="position:sticky;top:0;">
+            <tr>
+              <th class="ps-3">Ref #</th>
+              <th>Biller</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in payments %}
+            <tr {% if p.status != 'completed' %}style="background:#fef2f2;opacity:.7;"{% endif %}>
+              <td class="ps-3 txn-ref" style="font-size:10px;">{{ p.txn_number }}</td>
+              <td style="font-size:13px;">{{ p.biller_name }}</td>
+              <td class="text-end" style="font-weight:600;font-size:13px;">
+                {% if p.status == 'completed' %}
+                  ₱{{ p.total_due|floatformat:2 }}
+                {% else %}
+                  <span style="text-decoration:line-through;color:#9ca3af;">₱{{ p.total_due|floatformat:2 }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center py-5 text-muted">No transactions today.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const expected = {{ summary.total_collected|floatformat:2 }};
+const fmt = v => '₱' + parseFloat(v).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+function calcDiscrepancy(val) {
+  const declared = parseFloat(val) || 0;
+  const disc = declared - expected;
+  const panel = document.getElementById('discrepancy-panel');
+  panel.style.display = 'block';
+
+  document.getElementById('disc-declared').textContent = fmt(declared);
+  document.getElementById('disc-amount').textContent = (disc >= 0 ? '+' : '') + fmt(disc);
+
+  const msg = document.getElementById('disc-msg');
+  if (disc === 0) {
+    panel.style.borderColor = '#16a34a';
+    panel.style.background = '#f0fdf4';
+    document.getElementById('disc-amount').style.color = '#16a34a';
+    msg.textContent = '✓ Perfectly balanced!';
+    msg.style.color = '#16a34a';
+  } else if (disc < 0) {
+    panel.style.borderColor = '#ef4444';
+    panel.style.background = '#fef2f2';
+    document.getElementById('disc-amount').style.color = '#dc2626';
+    msg.textContent = `⚠ Shortage of ${fmt(Math.abs(disc))} — please verify all transactions.`;
+    msg.style.color = '#dc2626';
+  } else {
+    panel.style.borderColor = '#f59e0b';
+    panel.style.background = '#fffbeb';
+    document.getElementById('disc-amount').style.color = '#d97706';
+    msg.textContent = `↑ Overage of ${fmt(disc)} — may need to verify extra cash.`;
+    msg.style.color = '#d97706';
+  }
+}
+</script>
+{% endblock %}

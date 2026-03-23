@@ -1,0 +1,223 @@
+{% extends "base/base.html" %}
+{% block title %}Daily Report — {{ report_date|date:"M d, Y" }}{% endblock %}
+{% block page_title %}Daily Report{% endblock %}
+
+{% block content %}
+<!-- Date picker -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-500" style="font-size:14px;">Select Date:</label>
+      <input type="date" name="date" value="{{ report_date|date:'Y-m-d' }}"
+             max="{{ today|date:'Y-m-d' }}" class="form-control" style="width:180px;">
+      <button type="submit" class="btn btn-primary">Load Report</button>
+      <div class="ms-auto d-flex gap-2 no-print">
+        <a href="{% url 'reports:export_excel' %}?date_from={{ report_date|date:'Y-m-d' }}&date_to={{ report_date|date:'Y-m-d' }}"
+           class="btn btn-success btn-sm"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+        <a href="{% url 'reports:export_pdf' %}?date_from={{ report_date|date:'Y-m-d' }}&date_to={{ report_date|date:'Y-m-d' }}"
+           class="btn btn-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm"><i class="bi bi-printer me-1"></i>Print</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h5 class="fw-600 mb-3" style="font-size:16px;">
+  <i class="bi bi-calendar3 me-2"></i>{{ report_date|date:"l, F j, Y" }}
+</h5>
+
+<!-- KPI row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value">{{ summary.txn_count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Collected</div>
+      <div class="kpi-value" style="font-size:18px;">₱{{ summary.total_collected|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Service Fees</div>
+      <div class="kpi-value" style="font-size:18px;color:#16a34a;">₱{{ summary.total_fees|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">LEYECO Remittance</div>
+      <div class="kpi-value" style="font-size:18px;">₱{{ summary.total_bill|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Voided</div>
+      <div class="kpi-value {% if summary.voided_count > 0 %}text-danger{% endif %}">{{ summary.voided_count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Pending Void</div>
+      <div class="kpi-value {% if summary.pending_count > 0 %}text-warning{% endif %}">{{ summary.pending_count }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Teller breakdown -->
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-people me-2"></i>Teller Breakdown</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Teller</th>
+              <th class="text-end">Count</th>
+              <th class="text-end">Collected</th>
+              <th class="text-end">Fees</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tellers %}
+            <tr>
+              <td class="ps-3 fw-500">{{ t.teller_name }}</td>
+              <td class="text-end">{{ t.count }}</td>
+              <td class="text-end">₱{{ t.total_collected|floatformat:2 }}</td>
+              <td class="text-end" style="color:#16a34a;">₱{{ t.total_fees|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-4 text-muted">No completed transactions.</td></tr>
+            {% endfor %}
+          </tbody>
+          {% if tellers %}
+          <tfoot class="table-light">
+            <tr>
+              <th class="ps-3">Total</th>
+              <th class="text-end">{{ summary.txn_count }}</th>
+              <th class="text-end">₱{{ summary.total_collected|floatformat:2 }}</th>
+              <th class="text-end" style="color:#16a34a;">₱{{ summary.total_fees|floatformat:2 }}</th>
+            </tr>
+          </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Voided transactions -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header text-danger"><i class="bi bi-x-circle me-2"></i>Voided / Cancelled</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Ref #</th>
+              <th>Biller</th>
+              <th class="text-end">Amount</th>
+              <th>Reason</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in voids %}
+            <tr>
+              <td class="ps-3 txn-ref" style="font-size:11px;">{{ p.txn_number }}</td>
+              <td>{{ p.biller_name }}</td>
+              <td class="text-end">₱{{ p.total_due|floatformat:2 }}</td>
+              <td style="font-size:12px;color:#6b7280;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {{ p.void_reason|default:"—" }}
+              </td>
+              <td>
+                {% if p.status == 'voided' %}
+                  <span class="badge badge-voided rounded-pill px-2">Voided</span>
+                {% else %}
+                  <span class="badge badge-pending rounded-pill px-2">Pending</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center py-4 text-muted">No voids today.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Full transaction list -->
+<div class="card mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>All Transactions — {{ report_date|date:"M d, Y" }}</span>
+    <span class="badge bg-secondary">{{ payments.count }} records</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Ref #</th>
+            <th>Time</th>
+            <th>Teller</th>
+            <th>Biller Name</th>
+            <th>Account</th>
+            <th class="text-end">Bill</th>
+            <th class="text-end">Fee</th>
+            <th class="text-end">Total</th>
+            <th class="text-end">Cash In</th>
+            <th class="text-end">Change</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr {% if p.status == 'voided' %}style="background:#fef2f2;opacity:.7;"{% elif p.status == 'pending_void' %}style="background:#fef3c7;"{% endif %}>
+            <td class="ps-3 txn-ref" style="font-size:11px;">{{ p.txn_number }}</td>
+            <td style="font-size:12px;color:#6b7280;">{{ p.created_at|time:"g:i A" }}</td>
+            <td style="font-size:12px;">{{ p.teller.get_full_name|default:p.teller.username }}</td>
+            <td style="font-weight:500;">{{ p.biller_name }}</td>
+            <td style="font-size:12px;color:#6b7280;">{{ p.biller_account_number }}</td>
+            <td class="text-end">₱{{ p.bill_amount|floatformat:2 }}</td>
+            <td class="text-end" style="color:#16a34a;">₱{{ p.service_fee|floatformat:2 }}</td>
+            <td class="text-end fw-600">₱{{ p.total_due|floatformat:2 }}</td>
+            <td class="text-end">₱{{ p.cash_received|floatformat:2 }}</td>
+            <td class="text-end">₱{{ p.change_given|floatformat:2 }}</td>
+            <td>
+              {% if p.status == 'completed' %}
+                <span class="badge badge-completed rounded-pill px-2">Done</span>
+              {% elif p.status == 'voided' %}
+                <span class="badge badge-voided rounded-pill px-2">Voided</span>
+              {% else %}
+                <span class="badge badge-pending rounded-pill px-2">Pending</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="11" class="text-center py-5 text-muted">No transactions for this date.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if payments %}
+        <tfoot class="table-light">
+          <tr>
+            <th class="ps-3" colspan="5">Totals (completed only)</th>
+            <th class="text-end">₱{{ summary.total_bill|floatformat:2 }}</th>
+            <th class="text-end" style="color:#16a34a;">₱{{ summary.total_fees|floatformat:2 }}</th>
+            <th class="text-end fw-600">₱{{ summary.total_collected|floatformat:2 }}</th>
+            <th class="text-end">₱{{ summary.total_cash_in|floatformat:2 }}</th>
+            <th class="text-end">₱{{ summary.total_change|floatformat:2 }}</th>
+            <th></th>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "base/base.html" %}
+{% block title %}RTW Products{% endblock %}
+{% block page_title %}RTW · Products{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <h5 class="mb-0 fw-semibold">Product Catalog</h5>
+  <div class="d-flex gap-2">
+    {% if request.user.is_admin_or_manager %}
+    <a href="{% url 'rtw:product_create' %}" class="btn btn-success btn-sm">
+      <i class="bi bi-plus-lg"></i> Add Product
+    </a>
+    <a href="{% url 'rtw:category_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-tags"></i> Categories
+    </a>
+    {% endif %}
+    <a href="{% url 'rtw:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-sm-4">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search name, SKU, color…" class="form-control form-control-sm">
+      </div>
+      <div class="col-sm-3">
+        <select name="category" class="form-select form-select-sm">
+          <option value="">All Categories</option>
+          {% for cat in categories %}
+          <option value="{{ cat.pk }}" {% if sel_category == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-3">
+        <select name="status" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="active" {% if sel_status == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if sel_status == "inactive" %}selected{% endif %}>Inactive</option>
+          <option value="low" {% if sel_status == "low" %}selected{% endif %}>Low Stock (≤5)</option>
+          <option value="out" {% if sel_status == "out" %}selected{% endif %}>Out of Stock</option>
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Category</th>
+            <th>SKU</th>
+            <th>Size / Color</th>
+            <th class="text-end">Cost</th>
+            <th class="text-end">Price</th>
+            <th class="text-center">Stock</th>
+            <th>Status</th>
+            {% if request.user.is_admin_or_manager %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in page %}
+          <tr>
+            <td class="fw-medium" style="font-size:13.5px;">{{ p.name }}</td>
+            <td style="font-size:13px;">{{ p.category.name|default:"—" }}</td>
+            <td class="txn-ref">{{ p.sku|default:"—" }}</td>
+            <td style="font-size:13px;">
+              {% if p.size %}{{ p.size }}{% endif %}
+              {% if p.size and p.color %} / {% endif %}
+              {% if p.color %}{{ p.color }}{% endif %}
+              {% if not p.size and not p.color %}—{% endif %}
+            </td>
+            <td class="text-end" style="font-size:13px;">₱{{ p.cost_price|floatformat:2 }}</td>
+            <td class="text-end fw-semibold" style="font-size:13px;">₱{{ p.selling_price|floatformat:2 }}</td>
+            <td class="text-center">
+              <span class="badge {% if p.stock_quantity == 0 %}bg-danger{% elif p.stock_quantity <= 5 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                {{ p.stock_quantity }}
+              </span>
+            </td>
+            <td>
+              {% if p.is_active %}
+                <span class="badge badge-completed">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            {% if request.user.is_admin_or_manager %}
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'rtw:product_edit' p.pk %}" class="btn btn-outline-primary btn-sm py-0 px-2" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'rtw:product_stock' p.pk %}" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Adjust Stock">
+                  <i class="bi bi-boxes"></i>
+                </a>
+                <a href="{% url 'rtw:product_toggle' p.pk %}"
+                   class="btn btn-sm py-0 px-2 {% if p.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                   title="{% if p.is_active %}Deactivate{% else %}Activate{% endif %}"
+                   onclick="return confirm('{% if p.is_active %}Deactivate{% else %}Activate{% endif %} this product?')">
+                  <i class="bi {% if p.is_active %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+                </a>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="9" class="text-center text-muted py-4">No products found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if page.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination pagination-sm">
+    {% if page.has_previous %}
+    <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&q={{ q }}&category={{ sel_category }}&status={{ sel_status }}">Prev</a></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">{{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+    {% if page.has_next %}
+    <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&q={{ q }}&category={{ sel_category }}&status={{ sel_status }}">Next</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}

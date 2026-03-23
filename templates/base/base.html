@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}LEYECO Payment Monitor{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #0d6efd;
+      --brand-dark: #0b5ed7;
+      --sidebar-bg: #0f1923;
+      --sidebar-width: 240px;
+      --topbar-h: 56px;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f0f2f5; margin: 0; }
+
+    /* ── Sidebar ──────────────────────────── */
+    #sidebar {
+      position: fixed; top: 0; left: 0;
+      width: var(--sidebar-width); height: 100vh;
+      background: var(--sidebar-bg);
+      display: flex; flex-direction: column;
+      z-index: 1040; transition: transform .25s ease;
+    }
+    .sidebar-brand { padding: 18px 20px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .sidebar-brand .brand-name { font-size: 15px; font-weight: 600; color: #fff; line-height: 1.2; }
+    .sidebar-brand .brand-sub  { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 2px; }
+    .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+    .nav-section-label {
+      font-size: 10px; font-weight: 600; letter-spacing: .08em;
+      color: rgba(255,255,255,.35); text-transform: uppercase;
+      padding: 16px 20px 6px;
+    }
+    .sidebar-nav .nav-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 20px; color: rgba(255,255,255,.6);
+      font-size: 13.5px; border-radius: 0;
+      transition: background .15s, color .15s; text-decoration: none;
+    }
+    .sidebar-nav .nav-link i { font-size: 15px; width: 18px; text-align: center; }
+    .sidebar-nav .nav-link:hover  { background: rgba(255,255,255,.07); color: #fff; }
+    .sidebar-nav .nav-link.active { background: var(--brand); color: #fff; }
+    .sidebar-footer {
+      padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08);
+      font-size: 12px; color: rgba(255,255,255,.45);
+    }
+    .sidebar-footer .user-name { color: rgba(255,255,255,.8); font-weight: 500; }
+
+    /* ── Topbar ───────────────────────────── */
+    #topbar {
+      position: fixed; top: 0; left: var(--sidebar-width); right: 0;
+      height: var(--topbar-h); background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex; align-items: center; padding: 0 24px;
+      z-index: 1030; gap: 12px;
+    }
+    .topbar-toggle { display: none; background: none; border: none; font-size: 20px; color: #374151; cursor: pointer; padding: 4px; }
+    .topbar-title { font-size: 15px; font-weight: 600; color: #111827; flex: 1; }
+    .topbar-date  { font-size: 12px; color: #6b7280; }
+
+    /* ── Main ─────────────────────────────── */
+    #main { margin-left: var(--sidebar-width); padding-top: var(--topbar-h); min-height: 100vh; }
+    .page-body { padding: 24px; }
+
+    /* ── Cards ────────────────────────────── */
+    .card { border: 1px solid #e5e7eb; border-radius: 10px; }
+    .card-header { background: #fff; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-size: 14px; padding: 14px 18px; }
+
+    /* ── KPI cards ────────────────────────── */
+    .kpi-card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; padding: 18px 20px; }
+    .kpi-card .kpi-label { font-size: 12px; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+    .kpi-card .kpi-value { font-size: 26px; font-weight: 600; color: #111827; line-height: 1; }
+    .kpi-card .kpi-sub   { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+
+    /* ── Tables ───────────────────────────── */
+    .table th { font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; }
+    .table td { font-size: 13.5px; vertical-align: middle; }
+    .txn-ref  { font-family: var(--font-mono); font-size: 12px; color: #374151; }
+
+    /* ── Status badges ────────────────────── */
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    .badge-voided    { background: #fee2e2; color: #991b1b; }
+    .badge-pending   { background: #fef3c7; color: #92400e; }
+
+    /* ── Denomination grid ────────────────── */
+    .denom-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .denom-item { background: #f9fafb; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; text-align: center; transition: border-color .15s; }
+    .denom-item:focus-within { border-color: var(--brand); background: #eff6ff; }
+    .denom-label { font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 6px; }
+    .denom-qty { width: 100%; text-align: center; border: 1px solid #d1d5db; border-radius: 6px; padding: 6px 4px; font-size: 15px; font-weight: 600; background: #fff; outline: none; }
+    .denom-qty:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(13,110,253,.15); }
+    .denom-sub { font-size: 11px; color: #9ca3af; margin-top: 4px; display: block; }
+    .denom-qty::-webkit-outer-spin-button, .denom-qty::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .denom-qty[type=number] { -moz-appearance: textfield; }
+
+    /* ── Summary panel ────────────────────── */
+    .summary-panel { background: #0f1923; color: #fff; border-radius: 10px; padding: 20px; position: sticky; top: calc(var(--topbar-h) + 16px); }
+    .summary-panel .s-row { display: flex; justify-content: space-between; font-size: 13.5px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .summary-panel .s-row:last-child { border-bottom: none; }
+    .summary-panel .s-label { color: rgba(255,255,255,.55); }
+    .summary-panel .s-val   { font-weight: 600; }
+    .summary-panel .s-fee   { color: #fbbf24; }
+    .summary-panel .s-change { font-size: 20px; font-weight: 700; color: #34d399; }
+
+    /* ── Receipt ──────────────────────────── */
+    .receipt-wrap { max-width: 420px; margin: 0 auto; background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; padding: 28px 24px; font-size: 13.5px; }
+    .receipt-header { text-align: center; border-bottom: 2px dashed #e5e7eb; padding-bottom: 16px; margin-bottom: 16px; }
+    .receipt-row { display: flex; justify-content: space-between; padding: 5px 0; }
+    .receipt-divider { border-top: 2px dashed #e5e7eb; margin: 12px 0; }
+    .receipt-total  { font-size: 18px; font-weight: 700; }
+    .receipt-change { font-size: 22px; font-weight: 700; color: #16a34a; }
+    .receipt-txn    { font-family: var(--font-mono); font-size: 11px; color: #6b7280; text-align: center; margin-top: 16px; }
+
+    /* ── Quick action buttons ─────────────── */
+    .quick-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .quick-btn { padding: 5px 12px; font-size: 12px; font-weight: 600; border: 1.5px solid #d1d5db; border-radius: 20px; background: #fff; cursor: pointer; color: #374151; transition: all .12s; }
+    .quick-btn:hover { border-color: #0d6efd; background: #eff6ff; color: #0d6efd; }
+
+    /* ── Responsive ───────────────────────── */
+    @media (max-width: 768px) {
+      #sidebar { transform: translateX(-100%); }
+      #sidebar.show { transform: translateX(0); }
+      #topbar { left: 0; }
+      #main   { margin-left: 0; }
+      .topbar-toggle { display: block; }
+      .page-body { padding: 16px; }
+      .summary-panel { position: static; margin-top: 20px; }
+    }
+    #sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1039; }
+    #sidebar-overlay.show { display: block; }
+
+    @media print {
+      #sidebar, #topbar, .no-print { display: none !important; }
+      #main { margin-left: 0; padding-top: 0; }
+    }
+
+    /* ── Pagination ───────────────────────── */
+    .pagination .page-link { font-size: 13px; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<nav id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-name">⚡ LEYECO Monitor</div>
+    <div class="brand-sub">Payment Tracking System</div>
+  </div>
+
+  <div class="sidebar-nav">
+    <a href="{% url 'dashboard:index' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+
+    <div class="nav-section-label">Transactions</div>
+    <a href="{% url 'transactions:create' %}"
+       class="nav-link {% if request.resolver_match.url_name == 'create' %}active{% endif %}">
+      <i class="bi bi-plus-circle"></i> New Payment
+    </a>
+    <a href="{% url 'transactions:list' %}"
+       class="nav-link {% if request.resolver_match.url_name == 'list' %}active{% endif %}">
+      <i class="bi bi-list-ul"></i> All Transactions
+    </a>
+    <a href="{% url 'transactions:biller_history' %}"
+       class="nav-link {% if request.resolver_match.url_name == 'biller_history' %}active{% endif %}">
+      <i class="bi bi-person-lines-fill"></i> Biller Lookup
+    </a>
+
+    <a href="{% url 'shifts:list' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'shifts' %}active{% endif %}">
+      <i class="bi bi-clock-history"></i> My Shifts
+    </a>
+
+    <div class="nav-section-label">RTW Sales</div>
+    <a href="{% url 'rtw:dashboard' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'rtw' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-bag-heart"></i> RTW Dashboard
+    </a>
+    <a href="{% url 'rtw:sale_create' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'rtw' and request.resolver_match.url_name == 'sale_create' %}active{% endif %}">
+      <i class="bi bi-cart-plus"></i> New RTW Sale
+    </a>
+    <a href="{% url 'rtw:sale_list' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'rtw' and request.resolver_match.url_name == 'sale_list' %}active{% endif %}">
+      <i class="bi bi-receipt"></i> RTW Sales
+    </a>
+    <a href="{% url 'rtw:product_list' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'rtw' and 'product' in request.resolver_match.url_name %}active{% endif %}">
+      <i class="bi bi-box-seam"></i> RTW Products
+    </a>
+    {% if request.user.is_admin_or_manager %}
+    <a href="{% url 'rtw:reports' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'rtw' and request.resolver_match.url_name == 'reports' %}active{% endif %}">
+      <i class="bi bi-graph-up-arrow"></i> RTW Reports
+    </a>
+    {% endif %}
+
+    {% if request.user.is_admin_or_manager %}
+    <div class="nav-section-label">Management</div>
+    <a href="{% url 'reports:index' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'reports' %}active{% endif %}">
+      <i class="bi bi-file-earmark-bar-graph"></i> Reports
+    </a>
+    <a href="{% url 'audit:list' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'audit' %}active{% endif %}">
+      <i class="bi bi-shield-check"></i> Audit Log
+    </a>
+    <a href="{% url 'accounts:user_list' %}"
+       class="nav-link {% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'user_create' or request.resolver_match.url_name == 'user_edit' %}active{% endif %}">
+      <i class="bi bi-people"></i> Users
+    </a>
+    {% endif %}
+    <a href="{% url 'reports:advanced' %}"
+       class="nav-link {% if request.resolver_match.url_name == 'advanced' %}active{% endif %}">
+      <i class="bi bi-graph-up-arrow"></i> Advanced Reports
+    </a>
+    {% if request.user.is_admin %}
+    <a href="{% url 'backup:index' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'backup' %}active{% endif %}">
+      <i class="bi bi-archive"></i> Backup & Export
+    </a>
+    <a href="{% url 'settings_app:settings' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'settings_app' %}active{% endif %}">
+      <i class="bi bi-gear"></i> Settings
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="sidebar-footer">
+    <a href="{% url 'accounts:profile' %}" class="text-decoration-none d-block mb-1">
+      <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+      <div>{{ request.user.get_role_display }} · {{ request.user.branch }}</div>
+    </a>
+    <div class="d-flex gap-3 mt-2">
+      <a href="{% url 'accounts:change_password' %}" style="font-size:12px;color:rgba(255,255,255,.4);text-decoration:none;">
+        <i class="bi bi-key"></i> Password
+      </a>
+      <a href="{% url 'accounts:logout' %}" style="font-size:12px;color:#f87171;text-decoration:none;">
+        <i class="bi bi-box-arrow-left"></i> Sign out
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header id="topbar">
+  <button class="topbar-toggle" onclick="toggleSidebar()"><i class="bi bi-list"></i></button>
+  <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+  <div class="topbar-date d-none d-md-block">
+    <i class="bi bi-calendar3"></i> {% now "N j, Y · g:i A" %}
+  </div>
+  <a href="{% url 'transactions:create' %}" class="btn btn-primary btn-sm d-flex align-items-center gap-1" style="font-size:13px;">
+    <i class="bi bi-plus-lg"></i>
+    <span class="d-none d-sm-inline">New Payment</span>
+  </a>
+</header>
+
+<main id="main">
+  <div class="page-body">
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show mb-3" role="alert">
+          {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('show');
+    document.getElementById('sidebar-overlay').classList.toggle('show');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('show');
+    document.getElementById('sidebar-overlay').classList.remove('show');
+  }
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

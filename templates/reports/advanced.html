@@ -1,0 +1,225 @@
+{% extends "base/base.html" %}
+{% block title %}Advanced Reports — LEYECO Monitor{% endblock %}
+{% block page_title %}Advanced Reports{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+
+  <!-- Monthly income trend -->
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-graph-up me-2"></i>Monthly Collections — Last 12 Months</div>
+      <div class="card-body">
+        <div style="position:relative;height:260px;">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;color:#6b7280;margin-top:10px;">
+          <span style="display:flex;align-items:center;gap:4px;">
+            <span style="width:10px;height:10px;border-radius:2px;background:rgba(13,110,253,0.8);display:inline-block;"></span>Total Collected
+          </span>
+          <span style="display:flex;align-items:center;gap:4px;">
+            <span style="width:10px;height:10px;border-radius:2px;background:rgba(22,163,74,0.8);display:inline-block;"></span>Service Fees
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Teller comparison -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-people me-2"></i>Teller Comparison (All Time)</div>
+      <div class="card-body">
+        <div style="position:relative;height:260px;">
+          <canvas id="tellerChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+
+  <!-- Peak hours -->
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-clock me-2"></i>Peak Transaction Hours (All Time)</div>
+      <div class="card-body">
+        <div style="position:relative;height:220px;">
+          <canvas id="peakChart"></canvas>
+        </div>
+        <div style="font-size:12px;color:#6b7280;margin-top:8px;">
+          Shows which hours of the day have the most transactions.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top billers -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-trophy me-2"></i>Top 10 Billers (All Time)</div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">#</th>
+              <th>Biller</th>
+              <th class="text-end">Payments</th>
+              <th class="text-end">Total Paid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in top_billers %}
+            <tr>
+              <td class="ps-3" style="color:#9ca3af;font-size:12px;">{{ forloop.counter }}</td>
+              <td>
+                <div style="font-weight:500;font-size:13px;">{{ b.biller_name }}</div>
+                <div style="font-size:11px;color:#9ca3af;">{{ b.biller_account_number }}</div>
+              </td>
+              <td class="text-end" style="font-weight:600;">{{ b.count }}</td>
+              <td class="text-end" style="font-size:13px;">₱{{ b.total|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center py-4 text-muted">No data yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shortage history -->
+{% if shortage_history %}
+<div class="card">
+  <div class="card-header text-danger">
+    <i class="bi bi-exclamation-triangle me-2"></i>EOD Shortage History
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Date</th>
+            <th class="text-end">Expected</th>
+            <th class="text-end">Declared</th>
+            <th class="text-end">Shortage</th>
+            <th>Closed By</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for eod in shortage_history %}
+          <tr style="background:#fef2f2;">
+            <td class="ps-3" style="font-weight:500;">{{ eod.date|date:"M d, Y" }}</td>
+            <td class="text-end">₱{{ eod.total_collected|floatformat:2 }}</td>
+            <td class="text-end">₱{{ eod.declared_cash|floatformat:2 }}</td>
+            <td class="text-end" style="font-weight:700;color:#dc2626;">
+              ₱{{ eod.discrepancy|floatformat:2 }}
+            </td>
+            <td style="font-size:12px;color:#6b7280;">
+              {{ eod.closed_by.get_full_name|default:eod.closed_by.username|default:"—" }}
+            </td>
+            <td style="font-size:12px;color:#6b7280;">{{ eod.notes|truncatechars:50|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-check-circle" style="font-size:32px;display:block;margin-bottom:8px;color:#16a34a;opacity:.6;"></i>
+    No EOD shortages recorded. Great job!
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const monthlyLabels  = {{ monthly_labels|safe }};
+const monthlyCollect = {{ monthly_collect|safe }};
+const monthlyFees    = {{ monthly_fees|safe }};
+const tcNames        = {{ tc_names|safe }};
+const tcCollected    = {{ tc_collected|safe }};
+const tcFees         = {{ tc_fees|safe }};
+const peakLabels     = {{ peak_labels|safe }};
+const peakCounts     = {{ peak_counts|safe }};
+
+// Monthly trend
+new Chart(document.getElementById('monthlyChart'), {
+  type: 'bar',
+  data: {
+    labels: monthlyLabels.map(m => {
+      const [y,mo] = m.split('-');
+      return new Date(y, mo-1).toLocaleDateString('en-PH',{month:'short',year:'2-digit'});
+    }),
+    datasets: [
+      {label:'Total Collected', data:monthlyCollect, backgroundColor:'rgba(13,110,253,0.8)', borderRadius:4},
+      {label:'Service Fees',    data:monthlyFees,    backgroundColor:'rgba(22,163,74,0.8)',  borderRadius:4},
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>`₱${ctx.parsed.y.toLocaleString('en-PH',{minimumFractionDigits:2})}`}}},
+    scales:{
+      y:{beginAtZero:true, ticks:{callback:v=>v>=1000?'₱'+(v/1000).toFixed(0)+'k':'₱'+v, font:{size:11}}, grid:{color:'#f3f4f6'}},
+      x:{ticks:{font:{size:11}}, grid:{display:false}}
+    }
+  }
+});
+
+// Teller comparison horizontal bar
+new Chart(document.getElementById('tellerChart'), {
+  type: 'bar',
+  data: {
+    labels: tcNames,
+    datasets: [
+      {label:'Collected', data:tcCollected, backgroundColor:'rgba(13,110,253,0.8)', borderRadius:4},
+      {label:'Fees',      data:tcFees,      backgroundColor:'rgba(22,163,74,0.8)',  borderRadius:4},
+    ]
+  },
+  options: {
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>`₱${ctx.parsed.x.toLocaleString('en-PH',{minimumFractionDigits:2})}`}}},
+    scales:{
+      x:{beginAtZero:true, ticks:{callback:v=>'₱'+(v>=1000?(v/1000).toFixed(0)+'k':v), font:{size:10}}, grid:{color:'#f3f4f6'}},
+      y:{ticks:{font:{size:11}}, grid:{display:false}}
+    }
+  }
+});
+
+// Peak hours
+new Chart(document.getElementById('peakChart'), {
+  type: 'bar',
+  data: {
+    labels: peakLabels,
+    datasets:[{
+      label:'Transactions', data:peakCounts,
+      backgroundColor: peakCounts.map(v => {
+        const max = Math.max(...peakCounts);
+        const alpha = max > 0 ? 0.3 + 0.7*(v/max) : 0.3;
+        return `rgba(13,110,253,${alpha.toFixed(2)})`;
+      }),
+      borderRadius:3
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{beginAtZero:true, ticks:{font:{size:10}}, grid:{color:'#f3f4f6'}},
+      x:{ticks:{font:{size:9}, maxRotation:45, autoSkip:false}, grid:{display:false}}
+    }
+  }
+});
+</script>
+{% endblock %}

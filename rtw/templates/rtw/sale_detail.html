@@ -1,0 +1,105 @@
+{% extends "base/base.html" %}
+{% block title %}{{ sale.sale_number }} · RTW{% endblock %}
+{% block page_title %}RTW · Sale Detail{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="receipt-wrap">
+      <!-- Header -->
+      <div class="receipt-header">
+        <div style="font-size:16px;font-weight:700;">LEYECO RTW Sales</div>
+        <div style="font-size:12px;color:#6b7280;">Ready-to-Wear Receipt</div>
+        <div class="receipt-txn">{{ sale.sale_number }}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">{{ sale.created_at|date:"N j, Y · g:i A" }}</div>
+        {% if sale.is_voided %}
+          <div class="badge badge-voided mt-2" style="font-size:13px;">VOIDED</div>
+        {% endif %}
+      </div>
+
+      <!-- Customer Info -->
+      <div class="receipt-row">
+        <span style="color:#6b7280;">Customer</span>
+        <span class="fw-medium">{{ sale.customer_name|default:"Walk-in" }}</span>
+      </div>
+      <div class="receipt-row">
+        <span style="color:#6b7280;">Served by</span>
+        <span>{{ sale.served_by.get_full_name|default:sale.served_by.username }}</span>
+      </div>
+
+      <div class="receipt-divider"></div>
+
+      <!-- Items -->
+      {% for item in sale.items.all %}
+      <div class="receipt-row">
+        <span>
+          {{ item.product.name }}
+          {% if item.product.size %}<small class="text-muted"> · {{ item.product.size }}</small>{% endif %}
+          {% if item.product.color %}<small class="text-muted"> · {{ item.product.color }}</small>{% endif %}
+          <br>
+          <small class="text-muted">{{ item.quantity }} × ₱{{ item.unit_price|floatformat:2 }}</small>
+        </span>
+        <span class="fw-medium">₱{{ item.subtotal|floatformat:2 }}</span>
+      </div>
+      {% endfor %}
+
+      <div class="receipt-divider"></div>
+
+      <!-- Totals -->
+      <div class="receipt-row">
+        <span>Subtotal</span>
+        <span>₱{{ sale.subtotal|floatformat:2 }}</span>
+      </div>
+      {% if sale.discount_amount %}
+      <div class="receipt-row">
+        <span>Discount</span>
+        <span class="text-danger">− ₱{{ sale.discount_amount|floatformat:2 }}</span>
+      </div>
+      {% endif %}
+      <div class="receipt-row receipt-total">
+        <span>TOTAL</span>
+        <span>₱{{ sale.total_amount|floatformat:2 }}</span>
+      </div>
+      <div class="receipt-row">
+        <span>Cash Received</span>
+        <span>₱{{ sale.cash_received|floatformat:2 }}</span>
+      </div>
+      <div class="receipt-row" style="margin-top:4px;">
+        <span class="fw-semibold">Change</span>
+        <span class="receipt-change">₱{{ sale.change_given|floatformat:2 }}</span>
+      </div>
+
+      {% if sale.notes %}
+      <div class="receipt-divider"></div>
+      <div style="font-size:12px;color:#6b7280;">Notes: {{ sale.notes }}</div>
+      {% endif %}
+
+      {% if sale.is_voided %}
+      <div class="receipt-divider"></div>
+      <div style="font-size:12px;color:#991b1b;">
+        <strong>Voided</strong> by {{ sale.voided_by.get_full_name|default:sale.voided_by.username }}
+        on {{ sale.voided_at|date:"N j, Y g:i A" }}<br>
+        Reason: {{ sale.void_reason }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex gap-2 justify-content-center mt-3 no-print">
+      <a href="{% url 'rtw:sale_list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Back to Sales
+      </a>
+      <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-printer"></i> Print
+      </button>
+      {% if not sale.is_voided and request.user.is_admin_or_manager %}
+      <a href="{% url 'rtw:sale_void' sale.pk %}" class="btn btn-outline-danger btn-sm">
+        <i class="bi bi-x-circle"></i> Void Sale
+      </a>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

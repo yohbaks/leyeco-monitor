@@ -1,0 +1,160 @@
+{% extends "base/base.html" %}
+{% block title %}Biller History — LEYECO Monitor{% endblock %}
+{% block page_title %}Biller History Lookup{% endblock %}
+
+{% block content %}
+<!-- Search bar -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="d-flex gap-3 align-items-end flex-wrap">
+      <div style="flex:1;min-width:220px;">
+        <label class="form-label fw-500">Account Number</label>
+        <input type="text" name="account" value="{{ account }}"
+               class="form-control" placeholder="Enter LEYECO account number..."
+               autofocus style="font-size:14px;">
+      </div>
+      <button type="submit" class="btn btn-primary px-4">
+        <i class="bi bi-search me-2"></i>Search
+      </button>
+      {% if account %}
+      <a href="{% url 'transactions:biller_history' %}"
+         class="btn btn-outline-secondary">Clear</a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{% if account and not payments %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-search" style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>
+    No payments found for account <strong>{{ account }}</strong>.
+  </div>
+</div>
+{% endif %}
+
+{% if payments %}
+<!-- Biller summary -->
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
+  <div>
+    <h5 style="font-size:18px;font-weight:700;margin:0;">{{ stats.biller_name }}</h5>
+    <div style="font-family:var(--font-mono);font-size:13px;color:#6b7280;">{{ account }}</div>
+  </div>
+  <a href="{% url 'transactions:create' %}?account={{ account }}"
+     class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-circle me-1"></i>New Payment for This Account
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Payments</div>
+      <div class="kpi-value">{{ stats.count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Paid</div>
+      <div class="kpi-value" style="font-size:20px;">₱{{ stats.total_paid|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">First Payment</div>
+      <div class="kpi-value" style="font-size:16px;">
+        {{ stats.first.created_at|date:"M d, Y"|default:"—" }}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Last Payment</div>
+      <div class="kpi-value" style="font-size:16px;">
+        {{ stats.last.created_at|date:"M d, Y"|default:"—" }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment history table -->
+<div class="card">
+  <div class="card-header">
+    <i class="bi bi-clock-history me-2"></i>Payment History — {{ account }}
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Ref #</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Teller</th>
+            <th class="text-end">Bill</th>
+            <th class="text-end">Fee</th>
+            <th class="text-end">Total</th>
+            <th>LEYECO Ref</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr>
+            <td class="ps-3 txn-ref" style="font-size:11px;">{{ p.txn_number }}</td>
+            <td style="font-weight:500;font-size:13px;">{{ p.created_at|date:"M d, Y" }}</td>
+            <td style="font-size:12px;color:#6b7280;">{{ p.created_at|time:"g:i A" }}</td>
+            <td style="font-size:12px;color:#6b7280;">
+              {{ p.teller.get_full_name|default:p.teller.username }}
+            </td>
+            <td class="text-end">₱{{ p.bill_amount|floatformat:2 }}</td>
+            <td class="text-end" style="color:#16a34a;">₱{{ p.service_fee|floatformat:2 }}</td>
+            <td class="text-end" style="font-weight:600;">₱{{ p.total_due|floatformat:2 }}</td>
+            <td style="font-size:12px;color:#9ca3af;font-family:var(--font-mono);">
+              {{ p.leyeco_reference|default:"—" }}
+            </td>
+            <td>
+              {% if p.status == 'completed' %}
+                <span class="badge badge-completed rounded-pill px-2">Done</span>
+              {% elif p.status == 'voided' %}
+                <span class="badge badge-voided rounded-pill px-2">Voided</span>
+              {% else %}
+                <span class="badge badge-pending rounded-pill px-2">Pending</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'transactions:detail' p.pk %}"
+                   class="btn btn-outline-secondary" style="font-size:11px;padding:2px 8px;">
+                  View
+                </a>
+                <a href="{% url 'transactions:receipt' p.pk %}"
+                   class="btn btn-outline-secondary" style="font-size:11px;padding:2px 8px;"
+                   title="Receipt">
+                  <i class="bi bi-receipt"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if not account %}
+<!-- Landing state -->
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-search" style="font-size:36px;display:block;margin-bottom:12px;opacity:.3;"></i>
+    <div style="font-size:15px;font-weight:500;margin-bottom:8px;">Biller History Lookup</div>
+    <div style="font-size:13px;">
+      Enter a LEYECO account number above to see the complete payment history for that account.
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

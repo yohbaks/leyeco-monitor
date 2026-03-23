@@ -1,0 +1,255 @@
+{% extends "base/base.html" %}
+{% block title %}Range Report — LEYECO Monitor{% endblock %}
+{% block page_title %}Date Range Report{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label" style="font-size:12px;font-weight:600;">From</label>
+        <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}"
+               max="{{ today|date:'Y-m-d' }}" class="form-control" style="width:160px;">
+      </div>
+      <div class="col-auto">
+        <label class="form-label" style="font-size:12px;font-weight:600;">To</label>
+        <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}"
+               max="{{ today|date:'Y-m-d' }}" class="form-control" style="width:160px;">
+      </div>
+      <div class="col-auto d-flex gap-2 align-items-end">
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <!-- Preset shortcuts -->
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPreset(7)">Last 7 days</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setPreset(30)">Last 30 days</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setMonth()">This month</button>
+      </div>
+      <div class="col-auto ms-auto d-flex gap-2">
+        <a href="{% url 'reports:export_excel' %}?date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}"
+           class="btn btn-success btn-sm"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+        <a href="{% url 'reports:export_pdf' %}?date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}"
+           class="btn btn-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Transactions</div>
+      <div class="kpi-value">{{ summary.txn_count }}</div>
+      <div class="kpi-sub">{{ date_from|date:"M d" }} – {{ date_to|date:"M d, Y" }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Collected</div>
+      <div class="kpi-value" style="font-size:20px;">₱{{ summary.total_collected|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Service Fee Income</div>
+      <div class="kpi-value" style="font-size:20px;color:#16a34a;">₱{{ summary.total_fees|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">LEYECO Remittance</div>
+      <div class="kpi-value" style="font-size:20px;">₱{{ summary.total_bill|floatformat:2 }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart + Teller table -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Daily Collections Trend</div>
+      <div class="card-body">
+        {% if chart_labels %}
+        <div style="position:relative;height:280px;">
+          <canvas id="collectionsChart"></canvas>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">No data for selected period.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-people me-2"></i>Teller Performance</div>
+      <div class="card-body p-0">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Teller</th>
+              <th class="text-end">Txns</th>
+              <th class="text-end">Collected</th>
+              <th class="text-end">Fees</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tellers %}
+            <tr>
+              <td class="ps-3" style="font-weight:500;font-size:13px;">{{ t.teller_name }}</td>
+              <td class="text-end" style="font-size:13px;">{{ t.count }}</td>
+              <td class="text-end" style="font-size:13px;">₱{{ t.total_collected|floatformat:2 }}</td>
+              <td class="text-end" style="font-size:13px;color:#16a34a;">₱{{ t.total_fees|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-4 text-muted">No data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Voided transactions -->
+{% if voids %}
+<div class="card mb-4">
+  <div class="card-header text-danger">
+    <i class="bi bi-x-circle me-2"></i>Voided / Cancelled ({{ voids.count }})
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Ref #</th>
+            <th>Date</th>
+            <th>Biller</th>
+            <th class="text-end">Amount</th>
+            <th>Requested By</th>
+            <th>Approved By</th>
+            <th>Reason</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in voids %}
+          <tr style="background:#fef2f2;">
+            <td class="ps-3 txn-ref" style="font-size:11px;">{{ p.txn_number }}</td>
+            <td style="font-size:12px;">{{ p.created_at|date:"M d, Y" }}</td>
+            <td>{{ p.biller_name }}</td>
+            <td class="text-end">₱{{ p.total_due|floatformat:2 }}</td>
+            <td style="font-size:12px;">{{ p.void_requested_by.get_full_name|default:p.void_requested_by.username|default:"—" }}</td>
+            <td style="font-size:12px;">{{ p.void_approved_by.get_full_name|default:p.void_approved_by.username|default:"Pending" }}</td>
+            <td style="font-size:12px;color:#6b7280;">{{ p.void_reason|default:"—"|truncatechars:40 }}</td>
+            <td>
+              {% if p.status == 'voided' %}
+                <span class="badge badge-voided rounded-pill px-2">Voided</span>
+              {% else %}
+                <span class="badge badge-pending rounded-pill px-2">Pending</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const labels = {{ chart_labels|safe }};
+const collected = {{ chart_collected|safe }};
+const fees = {{ chart_fees|safe }};
+
+if (labels.length > 0) {
+  new Chart(document.getElementById('collectionsChart'), {
+    type: 'bar',
+    data: {
+      labels: labels.map(d => {
+        const dt = new Date(d + 'T00:00:00');
+        return dt.toLocaleDateString('en-PH', {month:'short', day:'numeric'});
+      }),
+      datasets: [
+        {
+          label: 'Total Collected (₱)',
+          data: collected,
+          backgroundColor: 'rgba(13,110,253,0.75)',
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Service Fees (₱)',
+          data: fees,
+          backgroundColor: 'rgba(22,163,74,0.75)',
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ₱${ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2})}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: v => '₱' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v),
+            font: { size: 11 }
+          },
+          grid: { color: '#f3f4f6' }
+        },
+        x: {
+          ticks: { font: { size: 11 }, maxRotation: 45 },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// Custom legend
+const legendHtml = `
+  <div style="display:flex;gap:16px;font-size:12px;color:#6b7280;margin-top:8px;">
+    <span style="display:flex;align-items:center;gap:4px;">
+      <span style="width:10px;height:10px;border-radius:2px;background:rgba(13,110,253,0.75);display:inline-block;"></span>
+      Total Collected
+    </span>
+    <span style="display:flex;align-items:center;gap:4px;">
+      <span style="width:10px;height:10px;border-radius:2px;background:rgba(22,163,74,0.75);display:inline-block;"></span>
+      Service Fees
+    </span>
+  </div>`;
+document.getElementById('collectionsChart')?.closest('.card-body')?.insertAdjacentHTML('beforeend', legendHtml);
+
+// Date preset helpers
+function setPreset(days) {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - (days - 1));
+  document.querySelector('[name=date_from]').value = from.toISOString().split('T')[0];
+  document.querySelector('[name=date_to]').value   = to.toISOString().split('T')[0];
+  document.querySelector('form').submit();
+}
+function setMonth() {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.querySelector('[name=date_from]').value = from.toISOString().split('T')[0];
+  document.querySelector('[name=date_to]').value   = now.toISOString().split('T')[0];
+  document.querySelector('form').submit();
+}
+</script>
+{% endblock %}

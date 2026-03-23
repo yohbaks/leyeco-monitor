@@ -1,0 +1,126 @@
+{% extends "base/base.html" %}
+{% block title %}Reports — LEYECO Monitor{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+<!-- Today's quick KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Today's Collections</div>
+      <div class="kpi-value">₱{{ today_sum.total_collected|floatformat:2 }}</div>
+      <div class="kpi-sub">{{ today_sum.txn_count }} transactions</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Today's Service Fees</div>
+      <div class="kpi-value" style="color:#16a34a;">₱{{ today_sum.total_fees|floatformat:2 }}</div>
+      <div class="kpi-sub">₱10 × {{ today_sum.txn_count }} txns</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">This Month Collected</div>
+      <div class="kpi-value">₱{{ month_sum.total_collected|floatformat:2 }}</div>
+      <div class="kpi-sub">{{ month_sum.txn_count }} transactions</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Month Service Fees</div>
+      <div class="kpi-value" style="color:#16a34a;">₱{{ month_sum.total_fees|floatformat:2 }}</div>
+      <div class="kpi-sub">MTD income</div>
+    </div>
+  </div>
+</div>
+
+<!-- Report cards -->
+<div class="row g-4 mb-4">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center p-4">
+        <div style="font-size:36px;margin-bottom:12px;">📅</div>
+        <h5 class="fw-600" style="font-size:16px;">Daily Report</h5>
+        <p class="text-muted" style="font-size:13px;">Full breakdown for any single day — collections, teller activity, voids, LEYECO remittance.</p>
+        <a href="{% url 'reports:daily' %}" class="btn btn-primary w-100">Open Daily Report</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center p-4">
+        <div style="font-size:36px;margin-bottom:12px;">📊</div>
+        <h5 class="fw-600" style="font-size:16px;">Date Range Report</h5>
+        <p class="text-muted" style="font-size:13px;">Custom date range with daily trend charts, teller comparison, and export to Excel or PDF.</p>
+        <a href="{% url 'reports:range' %}" class="btn btn-primary w-100">Open Range Report</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center p-4">
+        <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+        <h5 class="fw-600" style="font-size:16px;">EOD Reconciliation</h5>
+        <p class="text-muted" style="font-size:13px;">Declare today's cash on hand, detect shortages or overages, lock the day's records.</p>
+        <a href="{% url 'reports:eod' %}" class="btn btn-{% if today_sum.txn_count > 0 %}warning{% else %}outline-secondary{% endif %} w-100">
+          {% if today_sum.txn_count > 0 %}Run Today's EOD{% else %}EOD Reconciliation{% endif %}
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EOD history -->
+{% if recent_eod %}
+<div class="card">
+  <div class="card-header"><i class="bi bi-clock-history me-2"></i>Recent EOD Reconciliations</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Date</th>
+            <th class="text-end">Transactions</th>
+            <th class="text-end">Total Collected</th>
+            <th class="text-end">Service Fees</th>
+            <th class="text-end">Declared Cash</th>
+            <th class="text-end">Discrepancy</th>
+            <th>Closed By</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for eod in recent_eod %}
+          <tr>
+            <td class="ps-3 fw-500">{{ eod.date|date:"M d, Y" }}</td>
+            <td class="text-end">{{ eod.total_transactions }}</td>
+            <td class="text-end">₱{{ eod.total_collected|floatformat:2 }}</td>
+            <td class="text-end" style="color:#16a34a;">₱{{ eod.total_service_fees|floatformat:2 }}</td>
+            <td class="text-end">₱{{ eod.declared_cash|floatformat:2 }}</td>
+            <td class="text-end fw-600 {% if eod.discrepancy < 0 %}text-danger{% elif eod.discrepancy > 0 %}text-success{% else %}text-muted{% endif %}">
+              {% if eod.discrepancy > 0 %}+{% endif %}₱{{ eod.discrepancy|floatformat:2 }}
+            </td>
+           <td style="font-size:12px;color:#6b7280;">
+              {% if eod.closed_by %}
+                {{ eod.closed_by.get_full_name|default:eod.closed_by.username }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td>
+              {% if eod.status == 'closed' %}
+                <span class="badge badge-completed rounded-pill px-2">Closed</span>
+              {% else %}
+                <span class="badge badge-pending rounded-pill px-2">Open</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

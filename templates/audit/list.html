@@ -1,0 +1,251 @@
+{% extends "base/base.html" %}
+{% load audit_tags %}
+{% block title %}Audit Log — LEYECO Monitor{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+
+{% block content %}
+
+<!-- Today's action count pills -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% for code, label in action_choices %}
+  {% with count=action_counts|get_item:code %}
+  <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill audit-pill"
+       style="background:#f3f4f6;font-size:12px;font-weight:500;cursor:pointer;"
+       onclick="filterAction('{{ code }}')">
+    <span class="audit-dot audit-{{ code }}"></span>
+    {{ label }}
+    {% if count %}
+      <span class="badge rounded-pill ms-1"
+            style="background:rgba(0,0,0,.1);color:#374151;font-size:10px;min-width:18px;">
+        {{ count }}
+      </span>
+    {% endif %}
+  </div>
+  {% endwith %}
+  {% endfor %}
+  <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill audit-pill"
+       style="background:#f3f4f6;font-size:12px;color:#6b7280;cursor:pointer;"
+       onclick="filterAction('')">
+    <i class="bi bi-x-circle" style="font-size:13px;"></i> Show all
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form method="get" id="filterForm" class="row g-2 align-items-end">
+      <div class="col-sm-3">
+        <input type="text" name="q" value="{{ filter_q }}"
+               class="form-control" placeholder="Search user, biller, ref #..."
+               style="font-size:13px;">
+      </div>
+      <div class="col-sm-2">
+        <select name="action" class="form-select" style="font-size:13px;" id="actionSelect">
+          <option value="">All actions</option>
+          {% for code, label in action_choices %}
+          <option value="{{ code }}" {% if filter_action == code %}selected{% endif %}>
+            {{ label }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <select name="user_id" class="form-select" style="font-size:13px;">
+          <option value="">All users</option>
+          {% for u in all_users %}
+          <option value="{{ u.id }}"
+                  {% if filter_user == u.id|stringformat:"s" %}selected{% endif %}>
+            {{ u.get_full_name|default:u.username }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <input type="date" name="date_from" value="{{ date_from }}"
+               max="{{ today|date:'Y-m-d' }}" class="form-control" style="font-size:13px;">
+      </div>
+      <div class="col-sm-2">
+        <input type="date" name="date_to" value="{{ date_to }}"
+               max="{{ today|date:'Y-m-d' }}" class="form-control" style="font-size:13px;">
+      </div>
+      <div class="col-sm-1 d-flex gap-1">
+        <button type="submit" class="btn btn-primary flex-grow-1" style="font-size:13px;">
+          <i class="bi bi-search"></i>
+        </button>
+        <a href="{% url 'audit:list' %}" class="btn btn-outline-secondary"
+           style="font-size:13px;" title="Clear">
+          <i class="bi bi-x"></i>
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Results count + Excel export -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div style="font-size:13px;color:#6b7280;">
+    Showing <strong>{{ logs|length }}</strong> of <strong>{{ total_count }}</strong> records
+    {% if total_count > 500 %}
+      <span class="text-warning ms-2">(capped at 500 — use filters to narrow)</span>
+    {% endif %}
+  </div>
+  <a href="{% url 'audit:export_excel' %}?action={{ filter_action }}&user_id={{ filter_user }}&date_from={{ date_from }}&date_to={{ date_to }}&q={{ filter_q }}"
+     class="btn btn-success btn-sm">
+    <i class="bi bi-file-earmark-excel me-1"></i> Export to Excel
+  </a>
+</div>
+
+<!-- Log table -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3" style="width:170px;">Timestamp</th>
+            <th style="width:160px;">User</th>
+            <th style="width:190px;">Action</th>
+            <th>Detail</th>
+            <th style="width:130px;">IP Address</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="ps-3" style="font-size:12px;color:#6b7280;white-space:nowrap;">
+              {{ log.timestamp|date:"M d, Y" }}<br>
+              <span style="color:#9ca3af;">{{ log.timestamp|time:"g:i:s A" }}</span>
+            </td>
+            <td>
+              <div style="font-weight:500;font-size:13px;">
+                {{ log.user.get_full_name|default:log.user.username }}
+              </div>
+              <div style="font-size:11px;color:#9ca3af;">{{ log.user.get_role_display }}</div>
+            </td>
+            <td>
+              <span class="audit-badge audit-{{ log.action }}">
+                <span class="audit-dot audit-{{ log.action }}"></span>
+                {{ log.get_action_display }}
+              </span>
+            </td>
+            <td>
+              {% if log.target_txn %}
+                <a href="{% url 'transactions:detail' log.target_txn.pk %}"
+                   class="txn-ref text-decoration-none" style="font-size:12px;">
+                  {{ log.target_txn.txn_number }}
+                </a>
+                <span style="color:#6b7280;font-size:12px;margin-left:8px;">
+                  {{ log.target_txn.biller_name }}
+                </span>
+              {% endif %}
+              {% if log.details %}
+                {% if log.details.reason %}
+                  <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
+                    Reason: {{ log.details.reason|truncatechars:60 }}
+                  </div>
+                {% endif %}
+                {% if log.details.action_type == 'eod_closed' %}
+                  <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                    EOD closed &nbsp;·&nbsp;
+                    Declared: ₱{{ log.details.declared|default:"0" }} &nbsp;·&nbsp;
+                    Discrepancy: ₱{{ log.details.discrepancy|default:"0" }}
+                  </div>
+                {% endif %}
+                {% if log.details.action_type == 'user_created' %}
+                  <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                    Created user: <strong>{{ log.details.new_user }}</strong>
+                  </div>
+                {% endif %}
+                {% if log.details.action_type == 'password_reset' %}
+                  <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                    Password reset for: <strong>{{ log.details.target_user }}</strong>
+                  </div>
+                {% endif %}
+                {% if log.details.action_type == 'user_edited' %}
+                  <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                    Edited user: <strong>{{ log.details.target_user }}</strong>
+                  </div>
+                {% endif %}
+                {% if log.details.action_type == 'password_changed' %}
+                  <div style="font-size:11px;color:#9ca3af;margin-top:2px;">
+                    Changed own password
+                  </div>
+                {% endif %}
+                {% if log.details.action_type == 'user_activated' or log.details.action_type == 'user_deactivated' %}
+                  <div style="font-size:11px;color:#6b7280;margin-top:2px;">
+                    {{ log.details.action_type|title|cut:"_" }}: <strong>{{ log.details.target_user }}</strong>
+                  </div>
+                {% endif %}
+              {% endif %}
+              {% if not log.target_txn and not log.details %}
+                <span style="color:#d1d5db;font-size:12px;">—</span>
+              {% endif %}
+            </td>
+            <td style="font-family:var(--font-mono);font-size:11px;color:#9ca3af;">
+              {{ log.ip_address|default:"—" }}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" class="text-center py-5 text-muted">
+              <i class="bi bi-shield-check"
+                 style="font-size:32px;display:block;margin-bottom:8px;opacity:.4;"></i>
+              No audit records found.
+              {% if filter_action or filter_user or date_from or filter_q %}
+                <br>
+                <a href="{% url 'audit:list' %}"
+                   class="btn btn-sm btn-outline-secondary mt-2">Clear filters</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .audit-dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; flex-shrink: 0;
+  }
+  .audit-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 500; white-space: nowrap;
+  }
+  .audit-pill:hover { background: #e5e7eb !important; }
+
+  /* created */
+  .audit-created     { background:#d1fae5; color:#065f46; }
+  .audit-dot.audit-created { background:#16a34a; }
+  /* updated */
+  .audit-updated     { background:#dbeafe; color:#1e40af; }
+  .audit-dot.audit-updated { background:#2563eb; }
+  /* void requested */
+  .audit-void_requested { background:#fef3c7; color:#92400e; }
+  .audit-dot.audit-void_requested { background:#f59e0b; }
+  /* void approved */
+  .audit-void_approved { background:#fee2e2; color:#991b1b; }
+  .audit-dot.audit-void_approved { background:#ef4444; }
+  /* void rejected */
+  .audit-void_rejected { background:#f3f4f6; color:#374151; }
+  .audit-dot.audit-void_rejected { background:#9ca3af; }
+  /* login */
+  .audit-login  { background:#ede9fe; color:#5b21b6; }
+  .audit-dot.audit-login { background:#7c3aed; }
+  /* logout */
+  .audit-logout { background:#f3f4f6; color:#374151; }
+  .audit-dot.audit-logout { background:#6b7280; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterAction(code) {
+  document.getElementById('actionSelect').value = code;
+  document.getElementById('filterForm').submit();
+}
+</script>
+{% endblock %}

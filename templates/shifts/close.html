@@ -1,0 +1,181 @@
+{% extends "base/base.html" %}
+{% block title %}Close Shift — LEYECO Monitor{% endblock %}
+{% block page_title %}Close Shift{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-calculator me-2"></i>Shift Summary</div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Transactions</div>
+              <div class="kpi-value">{{ count }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Total Collected</div>
+              <div class="kpi-value" style="font-size:18px;">₱{{ total_collected|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Service Fees</div>
+              <div class="kpi-value" style="font-size:18px;color:#16a34a;">₱{{ total_fees|floatformat:2 }}</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card">
+              <div class="kpi-label">Opening Cash</div>
+              <div class="kpi-value" style="font-size:18px;">₱{{ shift.opening_cash|floatformat:2 }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded" style="background:#0f1923;color:#fff;">
+          <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+            <span style="color:rgba(255,255,255,.55);">Opening cash</span>
+            <span style="font-weight:600;">₱{{ shift.opening_cash|floatformat:2 }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+            <span style="color:rgba(255,255,255,.55);">+ Collected</span>
+            <span style="font-weight:600;">₱{{ total_collected|floatformat:2 }}</span>
+          </div>
+          <div class="d-flex justify-content-between pt-2"
+               style="border-top:1px solid rgba(255,255,255,.15);font-size:16px;">
+            <span style="color:#fff;font-weight:700;">Expected in drawer</span>
+            <span style="color:#60a5fa;font-weight:700;font-size:20px;">
+              ₱{{ expected_cash|floatformat:2 }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Declare cash form -->
+    <div class="card">
+      <div class="card-header bg-warning text-dark">
+        <i class="bi bi-lock me-2"></i>Declare Cash & Close Shift
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-500">Actual Cash in Drawer (₱)</label>
+            <input type="number" name="closing_cash" id="closing_cash"
+                   step="0.01" min="0"
+                   class="form-control form-control-lg"
+                   style="font-size:24px;font-weight:700;text-align:center;"
+                   placeholder="0.00" autofocus
+                   oninput="calcDisc(this.value)">
+          </div>
+
+          <!-- Live discrepancy -->
+          <div id="disc-panel" class="p-3 rounded mb-3"
+               style="background:#f9fafb;border:1.5px solid #e5e7eb;display:none;font-size:13.5px;">
+            <div class="d-flex justify-content-between mb-1">
+              <span style="color:#6b7280;">Expected</span>
+              <span style="font-weight:600;">₱{{ expected_cash|floatformat:2 }}</span>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+              <span style="color:#6b7280;">Declared</span>
+              <span id="disc-declared" style="font-weight:600;">₱0.00</span>
+            </div>
+            <div class="d-flex justify-content-between pt-2"
+                 style="border-top:1px solid #e5e7eb;font-size:15px;">
+              <span style="font-weight:700;">Discrepancy</span>
+              <span id="disc-amount" style="font-weight:700;font-size:18px;">₱0.00</span>
+            </div>
+            <div id="disc-msg" class="mt-2" style="font-size:12px;text-align:center;"></div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-500">Notes (Optional)</label>
+            <textarea name="notes" class="form-control" rows="2"
+                      placeholder="Any remarks..."></textarea>
+          </div>
+
+          <div class="d-flex gap-3">
+            <button type="submit" class="btn btn-danger btn-lg flex-grow-1"
+                    onclick="return confirm('Close shift? This cannot be undone.')">
+              <i class="bi bi-lock me-2"></i>Close Shift
+            </button>
+            <a href="{% url 'shifts:list' %}" class="btn btn-outline-secondary btn-lg">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transactions this shift -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-list-ul me-2"></i>Your Transactions This Shift ({{ count }})
+      </div>
+      <div class="card-body p-0" style="max-height:580px;overflow-y:auto;">
+        <table class="table table-hover mb-0">
+          <thead class="table-light" style="position:sticky;top:0;">
+            <tr>
+              <th class="ps-3">Ref #</th>
+              <th>Biller</th>
+              <th class="text-end">Total</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in txns %}
+            <tr>
+              <td class="ps-3 txn-ref" style="font-size:11px;">{{ p.txn_number }}</td>
+              <td style="font-size:13px;font-weight:500;">{{ p.biller_name }}</td>
+              <td class="text-end" style="font-weight:600;">₱{{ p.total_due|floatformat:2 }}</td>
+              <td style="font-size:12px;color:#6b7280;">{{ p.created_at|time:"g:i A" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center py-4 text-muted">No transactions this shift.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const expected = {{ expected_cash|floatformat:2 }};
+const fmt = v => '₱' + parseFloat(v).toLocaleString('en-PH',
+  {minimumFractionDigits:2, maximumFractionDigits:2});
+
+function calcDisc(val) {
+  const declared = parseFloat(val) || 0;
+  const disc = declared - expected;
+  const panel = document.getElementById('disc-panel');
+  panel.style.display = 'block';
+  document.getElementById('disc-declared').textContent = fmt(declared);
+  document.getElementById('disc-amount').textContent =
+    (disc >= 0 ? '+' : '') + fmt(disc);
+  const msg = document.getElementById('disc-msg');
+  if (disc === 0) {
+    panel.style.borderColor = '#16a34a'; panel.style.background = '#f0fdf4';
+    document.getElementById('disc-amount').style.color = '#16a34a';
+    msg.textContent = '✓ Perfectly balanced!'; msg.style.color = '#16a34a';
+  } else if (disc < 0) {
+    panel.style.borderColor = '#ef4444'; panel.style.background = '#fef2f2';
+    document.getElementById('disc-amount').style.color = '#dc2626';
+    msg.textContent = `⚠ Shortage of ${fmt(Math.abs(disc))}`;
+    msg.style.color = '#dc2626';
+  } else {
+    panel.style.borderColor = '#f59e0b'; panel.style.background = '#fffbeb';
+    document.getElementById('disc-amount').style.color = '#d97706';
+    msg.textContent = `↑ Overage of ${fmt(disc)}`; msg.style.color = '#d97706';
+  }
+}
+</script>
+{% endblock %}

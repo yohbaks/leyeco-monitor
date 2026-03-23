@@ -1,0 +1,165 @@
+{% extends "base/base.html" %}
+{% block title %}{{ payment.txn_number }} — LEYECO Monitor{% endblock %}
+{% block page_title %}Transaction Detail{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+
+    <!-- Header card -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+          <div>
+            <div class="txn-ref" style="font-size:14px;margin-bottom:4px;">{{ payment.txn_number }}</div>
+            <div style="font-size:22px;font-weight:700;">{{ payment.biller_name }}</div>
+            <div style="color:#6b7280;font-size:13px;">Account: {{ payment.biller_account_number }}</div>
+          </div>
+          <div class="text-end">
+            {% if payment.status == 'completed' %}
+              <span class="badge badge-completed px-3 py-2" style="font-size:13px;">✓ Completed</span>
+            {% elif payment.status == 'voided' %}
+              <span class="badge badge-voided px-3 py-2" style="font-size:13px;">✗ Voided</span>
+            {% else %}
+              <span class="badge badge-pending px-3 py-2" style="font-size:13px;">⏳ Pending Void</span>
+            {% endif %}
+            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
+              {{ payment.created_at|date:"M d, Y · g:i A" }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial summary -->
+    <div class="card mb-4">
+      <div class="card-header">Financial Details</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-4">
+            <div style="font-size:12px;color:#6b7280;">Bill Amount</div>
+            <div style="font-size:20px;font-weight:700;">₱{{ payment.bill_amount|floatformat:2 }}</div>
+            <div style="font-size:11px;color:#9ca3af;">Entered into LEYECO</div>
+          </div>
+          <div class="col-4">
+            <div style="font-size:12px;color:#6b7280;">Service Fee</div>
+            <div style="font-size:20px;font-weight:700;color:#16a34a;">₱{{ payment.service_fee|floatformat:2 }}</div>
+            <div style="font-size:11px;color:#9ca3af;">Our income</div>
+          </div>
+          <div class="col-4">
+            <div style="font-size:12px;color:#6b7280;">Total Due</div>
+            <div style="font-size:20px;font-weight:700;">₱{{ payment.total_due|floatformat:2 }}</div>
+          </div>
+          <div class="col-4">
+            <div style="font-size:12px;color:#6b7280;">Cash Received</div>
+            <div style="font-size:20px;font-weight:700;">₱{{ payment.cash_received|floatformat:2 }}</div>
+          </div>
+          <div class="col-4">
+            <div style="font-size:12px;color:#6b7280;">Change Given</div>
+            <div style="font-size:20px;font-weight:700;color:#2563eb;">₱{{ payment.change_given|floatformat:2 }}</div>
+          </div>
+        </div>
+
+        {% if payment.denominations.all %}
+        <hr>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Cash Denominations Received</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for d in payment.denominations.all %}
+            {% if d.quantity > 0 %}
+            <span class="badge" style="background:#f3f4f6;color:#374151;font-size:13px;padding:6px 12px;border-radius:20px;font-weight:500;">
+              ₱{{ d.denomination }} × {{ d.quantity }} = ₱{{ d.subtotal|floatformat:0 }}
+            </span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Void info -->
+    {% if payment.void_reason %}
+    <div class="card mb-4 border-danger">
+      <div class="card-header text-danger">Void Information</div>
+      <div class="card-body">
+        <div style="font-size:13.5px;"><strong>Reason:</strong> {{ payment.void_reason }}</div>
+        {% if payment.void_requested_by %}
+        <div style="font-size:12px;color:#6b7280;margin-top:4px;">
+          Requested by: {{ payment.void_requested_by.get_full_name|default:payment.void_requested_by.username }}
+        </div>
+        {% endif %}
+        {% if payment.void_approved_by %}
+        <div style="font-size:12px;color:#6b7280;">
+          Approved by: {{ payment.void_approved_by.get_full_name|default:payment.void_approved_by.username }}
+          on {{ payment.void_at|date:"M d, Y g:i A" }}
+        </div>
+        {% endif %}
+
+        {% if payment.status == 'pending_void' and request.user.is_admin_or_manager %}
+        <form method="post" action="{% url 'transactions:void_approve' payment.pk %}" class="d-flex gap-2 mt-3">
+          {% csrf_token %}
+          <button name="action" value="approve" class="btn btn-danger btn-sm">Approve Void</button>
+          <button name="action" value="reject" class="btn btn-outline-secondary btn-sm">Reject</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <div class="col-lg-4">
+    <!-- Meta info -->
+    <div class="card mb-3">
+      <div class="card-header">Transaction Info</div>
+      <div class="card-body" style="font-size:13px;">
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span style="color:#6b7280;">Teller</span>
+          <span style="font-weight:500;">{{ payment.teller.get_full_name|default:payment.teller.username }}</span>
+        </div>
+        {% if payment.leyeco_reference %}
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span style="color:#6b7280;">LEYECO Ref.</span>
+          <span class="txn-ref">{{ payment.leyeco_reference }}</span>
+        </div>
+        {% endif %}
+        <div class="d-flex justify-content-between py-2">
+          <span style="color:#6b7280;">Recorded at</span>
+          <span>{{ payment.created_at|date:"g:i A" }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card mb-3">
+      <div class="card-header">Actions</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <a href="{% url 'transactions:receipt' payment.pk %}" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-receipt me-1"></i> View / Print Receipt
+        </a>
+        {% if payment.status == 'completed' %}
+          <a href="{% url 'transactions:void_request' payment.pk %}" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-x-circle me-1"></i> Request Void
+          </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Audit log -->
+    {% if logs %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-shield-check me-1"></i> Audit Log</div>
+      <div class="card-body p-0">
+        {% for log in logs %}
+        <div class="px-3 py-2" style="border-bottom:1px solid #f3f4f6;font-size:12px;">
+          <div style="font-weight:500;color:#374151;">{{ log.get_action_display }}</div>
+          <div style="color:#9ca3af;">
+            {{ log.user.username }} · {{ log.timestamp|date:"M d, Y g:i A" }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

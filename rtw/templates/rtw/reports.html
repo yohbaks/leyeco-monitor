@@ -1,0 +1,190 @@
+{% extends "base/base.html" %}
+{% block title %}RTW Reports{% endblock %}
+{% block page_title %}RTW · Sales Reports{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<!-- Date Range Picker -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label mb-1" style="font-size:12px;">From</label>
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <label class="form-label mb-1" style="font-size:12px;">To</label>
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      </div>
+      <div class="col-auto">
+        <a href="?date_from={% now "Y-m-d" %}&date_to={% now "Y-m-d" %}" class="btn btn-outline-secondary btn-sm">Today</a>
+      </div>
+      <div class="col-auto ms-auto">
+        <a href="{% url 'rtw:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- KPI Summary -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Sales</div>
+      <div class="kpi-value">{{ total_sales }}</div>
+      <div class="kpi-sub">completed transactions</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Revenue</div>
+      <div class="kpi-value" style="font-size:20px;">₱{{ total_revenue|floatformat:2 }}</div>
+      <div class="kpi-sub">after discounts</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Discounts</div>
+      <div class="kpi-value text-warning" style="font-size:20px;">₱{{ total_discount|floatformat:2 }}</div>
+      <div class="kpi-sub">given to customers</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Gross Profit</div>
+      <div class="kpi-value {% if gross_profit < 0 %}text-danger{% else %}text-success{% endif %}" style="font-size:20px;">
+        ₱{{ gross_profit|floatformat:2 }}
+      </div>
+      <div class="kpi-sub">revenue minus cost</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Revenue Trend Chart -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">Daily Revenue Trend</div>
+      <div class="card-body">
+        <canvas id="trendChart" height="90"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sales by Category -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Sales by Category</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Category</th><th class="text-end">Qty</th><th class="text-end">Revenue</th></tr></thead>
+          <tbody>
+            {% for cat in by_category %}
+            <tr>
+              <td style="font-size:13px;">{{ cat.product__category__name|default:"Uncategorized" }}</td>
+              <td class="text-end" style="font-size:13px;">{{ cat.qty_sold }}</td>
+              <td class="text-end fw-medium" style="font-size:13px;">₱{{ cat.revenue|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted text-center py-3">No data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-0">
+  <!-- Top Products -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Top 10 Products by Units Sold</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>#</th><th>Product</th><th>Category</th><th class="text-end">Qty</th><th class="text-end">Revenue</th></tr></thead>
+          <tbody>
+            {% for p in top_products %}
+            <tr>
+              <td class="text-muted" style="font-size:12px;">{{ forloop.counter }}</td>
+              <td style="font-size:13px;" class="fw-medium">{{ p.product__name }}</td>
+              <td style="font-size:12px;color:#6b7280;">{{ p.product__category__name|default:"—" }}</td>
+              <td class="text-end" style="font-size:13px;">{{ p.qty_sold }}</td>
+              <td class="text-end fw-medium" style="font-size:13px;">₱{{ p.revenue|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-muted text-center py-3">No data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff Performance -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">Staff Performance</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Staff</th><th class="text-end">Sales</th><th class="text-end">Total</th></tr></thead>
+          <tbody>
+            {% for s in staff_perf %}
+            <tr>
+              <td style="font-size:13px;">
+                {% if s.served_by__first_name %}
+                  {{ s.served_by__first_name }} {{ s.served_by__last_name }}
+                {% else %}
+                  {{ s.served_by__username }}
+                {% endif %}
+              </td>
+              <td class="text-end" style="font-size:13px;">{{ s.sales_count }}</td>
+              <td class="text-end fw-medium" style="font-size:13px;">₱{{ s.total|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted text-center py-3">No data.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const trendData = {{ trend_data|safe }};
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: trendData.map(r => r.date),
+    datasets: [{
+      label: 'Revenue (₱)',
+      data: trendData.map(r => r.revenue),
+      borderColor: '#0d6efd',
+      backgroundColor: 'rgba(13,110,253,0.08)',
+      tension: 0.3,
+      fill: true,
+      pointRadius: 3,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { ticks: { callback: v => '₱' + v.toLocaleString() } },
+      x: { ticks: { maxTicksLimit: 12 } }
+    }
+  }
+});
+</script>
+{% endblock %}

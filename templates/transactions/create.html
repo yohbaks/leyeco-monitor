@@ -1,0 +1,415 @@
+{% extends "base/base.html" %}
+{% load transaction_tags %}
+{% block title %}New Payment — LEYECO Monitor{% endblock %}
+{% block page_title %}Record New Payment{% endblock %}
+
+{% block extra_head %}
+<style>
+  .step-badge {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #0d6efd; color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .section-head {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 15px; font-weight: 600; color: #111827;
+    margin-bottom: 16px;
+  }
+  .denom-qty::-webkit-outer-spin-button,
+  .denom-qty::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .denom-qty[type=number] { -moz-appearance: textfield; }
+
+  /* Quick-add buttons */
+  .quick-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .quick-btn {
+    padding: 5px 12px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid #d1d5db; border-radius: 20px;
+    background: #fff; cursor: pointer; color: #374151;
+    transition: all .12s;
+  }
+  .quick-btn:hover { border-color: #0d6efd; background: #eff6ff; color: #0d6efd; }
+  .quick-btn:active { transform: scale(.96); }
+
+  /* Highlight total mismatch */
+  .mismatch { border-color: #ef4444 !important; }
+  .match     { border-color: #16a34a !important; background: #f0fdf4 !important; }
+
+  .form-section {
+    background: #fff; border-radius: 10px;
+    border: 1px solid #e5e7eb; padding: 20px 22px;
+    margin-bottom: 18px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <!-- Left: Form -->
+  <div class="col-lg-8">
+    <form method="post" id="paymentForm" novalidate>
+      {% csrf_token %}
+
+      <!-- Duplicate account warning -->
+      {% if duplicate_warning %}
+      <div class="alert alert-warning mb-3">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Duplicate detected!</strong> Account number
+        <strong>{{ prefill_account }}</strong> has already been paid today:
+        <ul class="mb-0 mt-2">
+          {% for d in duplicate_warning %}
+          <li style="font-size:13px;">
+            <a href="{% url 'transactions:detail' d.pk %}" target="_blank">{{ d.txn_number }}</a>
+            — ₱{{ d.total_due|floatformat:2 }} at {{ d.created_at|time:"g:i A" }}
+            by {{ d.teller.get_full_name|default:d.teller.username }}
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="mt-2" style="font-size:12px;color:#92400e;">
+          You can still proceed if this is a legitimate separate payment.
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Non-field errors -->
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+          {% for e in form.non_field_errors %}<div>⚠ {{ e }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      <!-- Section 1: Biller Info -->
+      <div class="form-section">
+        <div class="section-head">
+          <span class="step-badge">1</span> Biller Information
+        </div>
+        <div class="row g-3">
+          <div class="col-sm-7">
+            <label class="form-label fw-500" for="{{ form.biller_name.id_for_label }}">Biller Name</label>
+            {{ form.biller_name }}
+            {% if form.biller_name.errors %}
+              <div class="text-danger" style="font-size:12px;">{{ form.biller_name.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-sm-5">
+            <label class="form-label fw-500" for="{{ form.biller_account_number.id_for_label }}">Account Number</label>
+            {{ form.biller_account_number }}
+            {% if form.biller_account_number.errors %}
+              <div class="text-danger" style="font-size:12px;">{{ form.biller_account_number.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-500" for="{{ form.leyeco_reference.id_for_label }}">
+              LEYECO Reference No. <span class="text-muted fw-normal">(optional)</span>
+            </label>
+            {{ form.leyeco_reference }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Bill Amount -->
+      <div class="form-section">
+        <div class="section-head">
+          <span class="step-badge">2</span> Bill Amount
+        </div>
+        <div class="row g-3 align-items-end">
+          <div class="col-sm-6">
+            <label class="form-label fw-500" for="{{ form.bill_amount.id_for_label }}">
+              Official Bill Amount (₱)
+            </label>
+            {{ form.bill_amount }}
+            <div class="form-text">Amount entered into the LEYECO system</div>
+            {% if form.bill_amount.errors %}
+              <div class="text-danger" style="font-size:12px;">{{ form.bill_amount.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-sm-6">
+            <div style="background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;padding:14px 16px;">
+              <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Service Fee (fixed)</div>
+              <div style="font-size:22px;font-weight:700;color:#0d6efd;">₱10.00</div>
+              <div style="font-size:11px;color:#9ca3af;margin-top:2px;">Added to every transaction</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Cash Denominations -->
+      <div class="form-section">
+        <div class="section-head">
+          <span class="step-badge">3</span> Cash Received — Denomination Breakdown
+        </div>
+
+        <div class="denom-grid mb-3">
+          {% for denom, label in denom_fields %}
+          <div class="denom-item" id="denom-wrap-{{ denom }}">
+            <span class="denom-label">{{ label }}</span>
+            <input
+              type="number"
+              name="denom_{{ denom }}"
+              id="id_denom_{{ denom }}"
+              value="{{ form|get_denom:denom }}"
+              min="0"
+              class="denom-qty"
+              inputmode="numeric"
+              data-denom="{{ denom }}"
+              placeholder="0"
+            >
+            <span class="denom-sub" id="sub-{{ denom }}">= ₱0</span>
+          </div>
+          {% endfor %}
+        </div>
+
+        <!-- Quick cash presets -->
+        <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Quick presets:</div>
+        <div class="quick-btns">
+          <button type="button" class="quick-btn" onclick="quickPreset(0)">🔄 Clear all</button>
+          <button type="button" class="quick-btn" onclick="quickPreset(500)">₱500 bill</button>
+          <button type="button" class="quick-btn" onclick="quickPreset(1000)">₱1,000 bill</button>
+          <button type="button" class="quick-btn" onclick="quickPreset(2000)">2× ₱1,000</button>
+        </div>
+
+        <!-- Total match indicator -->
+        <div class="mt-3 p-3 rounded" id="denom-status" style="background:#f9fafb;border:1.5px solid #e5e7eb;font-size:13.5px;">
+          <div class="d-flex justify-content-between align-items-center">
+            <span>Denomination total:</span>
+            <span id="denom-total-display" style="font-weight:700;font-size:16px;">₱0.00</span>
+          </div>
+          <div id="denom-match-msg" class="mt-1" style="font-size:12px;color:#9ca3af;"></div>
+        </div>
+
+        <!-- Hidden cash_received field (auto-filled) -->
+        {{ form.cash_received }}
+        {% if form.cash_received.errors %}
+          <div class="text-danger mt-1" style="font-size:12px;">{{ form.cash_received.errors.0 }}</div>
+        {% endif %}
+      </div>
+
+      <!-- Section 4: Notes -->
+      <div class="form-section">
+        <div class="section-head">
+          <span class="step-badge">4</span> Notes
+          <span class="text-muted fw-normal" style="font-size:13px;">(optional)</span>
+        </div>
+        {{ form.notes }}
+      </div>
+
+      <!-- Submit -->
+      <div class="d-flex gap-3 align-items-center">
+        <button type="submit" class="btn btn-primary btn-lg px-4" id="submitBtn">
+          <i class="bi bi-check-circle me-2"></i> Record Transaction
+        </button>
+        <a href="{% url 'transactions:list' %}" class="btn btn-outline-secondary btn-lg">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Right: Live Summary Panel -->
+  <div class="col-lg-4">
+    <div class="summary-panel">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.06em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:14px;">
+        Live Summary
+      </div>
+
+      <div class="s-row">
+        <span class="s-label">Bill amount</span>
+        <span class="s-val" id="sum-bill">₱0.00</span>
+      </div>
+      <div class="s-row">
+        <span class="s-label">Service fee</span>
+        <span class="s-val s-fee">+ ₱10.00</span>
+      </div>
+      <div class="s-row" style="border-top:1px solid rgba(255,255,255,.2);margin-top:6px;padding-top:12px;">
+        <span class="s-label" style="color:#fff;font-weight:600;">Total due</span>
+        <span class="s-val" id="sum-total" style="font-size:18px;">₱0.00</span>
+      </div>
+      <div class="s-row">
+        <span class="s-label">Cash received</span>
+        <span class="s-val" id="sum-cash">₱0.00</span>
+      </div>
+      <div class="s-row" style="border-top:1px solid rgba(255,255,255,.2);margin-top:6px;padding-top:12px;">
+        <span class="s-label" style="color:#fff;font-weight:600;">Change</span>
+        <span class="s-change" id="sum-change">₱0.00</span>
+      </div>
+
+      <div id="sum-status" class="mt-3 p-2 rounded text-center" style="font-size:12px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.5);">
+        Enter bill amount to begin
+      </div>
+
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);">
+        <div style="font-size:11px;color:rgba(255,255,255,.35);line-height:1.6;">
+          <i class="bi bi-info-circle me-1"></i>
+          Enter the exact bills and coins received from the customer. The denominations must add up to the cash received.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5, 1];
+const fmt = v => '₱' + parseFloat(v).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+function getDenomTotal() {
+  return DENOMS.reduce((sum, d) => {
+    const qty = parseInt(document.getElementById('id_denom_' + d)?.value || 0) || 0;
+    return sum + (d * qty);
+  }, 0);
+}
+
+function getBillAmount() {
+  return parseFloat(document.querySelector('.bill-amount-input')?.value || 0) || 0;
+}
+
+function updateAll() {
+  const bill = getBillAmount();
+  const fee = 10;
+  const total = bill > 0 ? bill + fee : 0;
+  const cash = getDenomTotal();
+  const change = Math.max(cash - total, 0);
+
+  // Update summary panel
+  document.getElementById('sum-bill').textContent   = fmt(bill);
+  document.getElementById('sum-total').textContent  = fmt(total);
+  document.getElementById('sum-cash').textContent   = fmt(cash);
+  document.getElementById('sum-change').textContent = fmt(change);
+
+  // Update hidden cash_received field
+  const cashInput = document.querySelector('.cash-received-input');
+  if (cashInput) cashInput.value = cash.toFixed(2);
+
+  // Update individual denom subtotals
+  DENOMS.forEach(d => {
+    const qty = parseInt(document.getElementById('id_denom_' + d)?.value || 0) || 0;
+    const sub = document.getElementById('sub-' + d);
+    if (sub) sub.textContent = '= ' + fmt(d * qty);
+  });
+
+  // Status messages
+  const statusEl = document.getElementById('sum-status');
+  const denomStatus = document.getElementById('denom-status');
+  const denomMsg = document.getElementById('denom-match-msg');
+  const denomDisplay = document.getElementById('denom-total-display');
+
+  denomDisplay.textContent = fmt(cash);
+
+  if (bill <= 0) {
+    statusEl.textContent = 'Enter bill amount to begin';
+    statusEl.style.color = 'rgba(255,255,255,.5)';
+    statusEl.style.background = 'rgba(255,255,255,.08)';
+    return;
+  }
+
+  if (cash === 0) {
+    statusEl.textContent = 'Enter cash denominations received';
+    statusEl.style.color = 'rgba(255,255,255,.5)';
+    denomMsg.textContent = 'Enter denominations';
+    denomStatus.style.borderColor = '#e5e7eb';
+    denomStatus.style.background = '#f9fafb';
+    return;
+  }
+
+  if (cash < total) {
+    statusEl.textContent = '⚠ Cash is less than total due!';
+    statusEl.style.color = '#fca5a5';
+    statusEl.style.background = 'rgba(239,68,68,.15)';
+    denomMsg.textContent = `Short by ${fmt(total - cash)}`;
+    denomStatus.style.borderColor = '#ef4444';
+    denomStatus.style.background = '#fef2f2';
+  } else if (cash === total) {
+    statusEl.textContent = '✓ Exact change — no change needed';
+    statusEl.style.color = '#86efac';
+    statusEl.style.background = 'rgba(22,163,74,.15)';
+    denomMsg.textContent = 'Perfect — exact amount';
+    denomStatus.style.borderColor = '#16a34a';
+    denomStatus.style.background = '#f0fdf4';
+  } else {
+    statusEl.textContent = `✓ Give change: ${fmt(change)}`;
+    statusEl.style.color = '#86efac';
+    statusEl.style.background = 'rgba(22,163,74,.15)';
+    denomMsg.textContent = `Change to give: ${fmt(change)}`;
+    denomStatus.style.borderColor = '#16a34a';
+    denomStatus.style.background = '#f0fdf4';
+  }
+}
+
+// Quick preset — clears denominations and optionally sets one
+function quickPreset(value) {
+  DENOMS.forEach(d => {
+    const el = document.getElementById('id_denom_' + d);
+    if (el) el.value = 0;
+  });
+  if (value > 0) {
+    const el = document.getElementById('id_denom_' + value);
+    if (el) el.value = 1;
+  }
+  updateAll();
+}
+
+// Auto-fill denominations from bill amount (smart suggestion)
+function autoFillDenoms(total) {
+  DENOMS.forEach(d => {
+    const el = document.getElementById('id_denom_' + d);
+    if (el) el.value = 0;
+  });
+  let remaining = total;
+  DENOMS.forEach(d => {
+    if (remaining <= 0) return;
+    const qty = Math.floor(remaining / d);
+    if (qty > 0) {
+      const el = document.getElementById('id_denom_' + d);
+      if (el) el.value = qty;
+      remaining -= qty * d;
+    }
+  });
+  updateAll();
+}
+
+// Bill amount change — auto suggest denominations
+document.querySelector('.bill-amount-input')?.addEventListener('input', function() {
+  const bill = parseFloat(this.value || 0) || 0;
+  const total = bill + 10;
+  if (bill > 0 && getDenomTotal() === 0) {
+    autoFillDenoms(total);
+  }
+  updateAll();
+});
+
+// Denomination input changes
+DENOMS.forEach(d => {
+  const el = document.getElementById('id_denom_' + d);
+  el?.addEventListener('input', updateAll);
+  el?.addEventListener('focus', function() { this.select(); });
+});
+
+// Form submit validation
+document.getElementById('paymentForm')?.addEventListener('submit', function(e) {
+  const bill = getBillAmount();
+  const cash = getDenomTotal();
+  const total = bill + 10;
+  if (bill <= 0) {
+    e.preventDefault();
+    alert('Please enter the bill amount.');
+    return;
+  }
+  if (cash < total) {
+    e.preventDefault();
+    alert(`Cash received (${fmt(cash)}) is less than the total due (${fmt(total)}). Please collect the correct amount.`);
+    return;
+  }
+  if (cash === 0) {
+    e.preventDefault();
+    alert('Please enter the cash denominations received.');
+    return;
+  }
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Recording...';
+});
+
+// Init
+updateAll();
+</script>
+{% endblock %}

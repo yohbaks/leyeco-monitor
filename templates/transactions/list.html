@@ -1,0 +1,179 @@
+{% extends "base/base.html" %}
+{% block title %}Transactions — LEYECO Monitor{% endblock %}
+{% block page_title %}Transactions{% endblock %}
+
+{% block content %}
+<!-- Search / Filter bar -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-sm-4">
+        <input type="text" name="q" value="{{ q }}" class="form-control"
+               placeholder="Search ref, biller, account..." style="font-size:13.5px;">
+      </div>
+      <div class="col-sm-2">
+        <input type="date" name="date_from" value="{{ date_from }}" class="form-control" style="font-size:13px;">
+      </div>
+      <div class="col-sm-2">
+        <input type="date" name="date_to" value="{{ date_to }}" class="form-control" style="font-size:13px;">
+      </div>
+      <div class="col-sm-2">
+        <select name="status" class="form-select" style="font-size:13px;">
+          <option value="">All statuses</option>
+          <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+          <option value="pending_void" {% if status_filter == 'pending_void' %}selected{% endif %}>Pending Void</option>
+          <option value="voided" {% if status_filter == 'voided' %}selected{% endif %}>Voided</option>
+        </select>
+      </div>
+      <div class="col-sm-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary flex-grow-1" style="font-size:13px;">
+          <i class="bi bi-search"></i> Filter
+        </button>
+        <a href="{% url 'transactions:list' %}" class="btn btn-outline-secondary" style="font-size:13px;" title="Clear">✕</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Summary totals -->
+{% if totals.count %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value">{{ totals.count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Collected</div>
+      <div class="kpi-value" style="font-size:20px;">₱{{ totals.total_collected|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Service Fees</div>
+      <div class="kpi-value" style="font-size:20px;color:#16a34a;">₱{{ totals.total_fees|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-label">LEYECO Remittance</div>
+      <div class="kpi-value" style="font-size:20px;">₱{{ totals.total_bill|floatformat:2 }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>{{ payments|length }} record{{ payments|length|pluralize }}</span>
+    <a href="{% url 'transactions:create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i> New Payment
+    </a>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Ref #</th>
+            <th>Biller</th>
+            <th>Account</th>
+            <th class="text-end">Bill</th>
+            <th class="text-end">Fee</th>
+            <th class="text-end">Total</th>
+            <th>Teller</th>
+            <th>Date / Time</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr {% if p.status == 'voided' %}style="opacity:.55;"{% endif %}>
+            <td class="ps-3">
+              <span class="txn-ref">{{ p.txn_number }}</span>
+            </td>
+            <td style="font-weight:500;">{{ p.biller_name }}</td>
+            <td style="font-size:12px;color:#6b7280;">{{ p.biller_account_number }}</td>
+            <td class="text-end" style="font-size:13px;">₱{{ p.bill_amount|floatformat:2 }}</td>
+            <td class="text-end" style="font-size:13px;color:#16a34a;">₱{{ p.service_fee|floatformat:2 }}</td>
+            <td class="text-end" style="font-weight:600;">₱{{ p.total_due|floatformat:2 }}</td>
+            <td style="font-size:12px;color:#6b7280;">{{ p.teller.get_full_name|default:p.teller.username }}</td>
+            <td style="font-size:12px;color:#6b7280;white-space:nowrap;">
+              {{ p.created_at|date:"M d, Y" }}<br>
+              <span style="color:#9ca3af;">{{ p.created_at|time:"g:i A" }}</span>
+            </td>
+            <td>
+              {% if p.status == 'completed' %}
+                <span class="badge badge-completed rounded-pill px-2">Done</span>
+              {% elif p.status == 'voided' %}
+                <span class="badge badge-voided rounded-pill px-2">Voided</span>
+              {% else %}
+                <span class="badge badge-pending rounded-pill px-2">⏳ Void req.</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'transactions:detail' p.pk %}" class="btn btn-xs btn-outline-secondary" style="font-size:11px;padding:2px 8px;">View</a>
+                <a href="{% url 'transactions:receipt' p.pk %}" class="btn btn-xs btn-outline-secondary" style="font-size:11px;padding:2px 8px;" title="Receipt">
+                  <i class="bi bi-receipt"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="10" class="text-center py-5 text-muted">
+              <i class="bi bi-inbox" style="font-size:28px;"></i>
+              <div class="mt-2">No transactions found.</div>
+              {% if q or date_from or date_to %}
+                <a href="{% url 'transactions:list' %}" class="btn btn-sm btn-outline-secondary mt-2">Clear filters</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+    <li class="page-item">
+      <a class="page-link" href="?{% if q %}q={{ q }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ page_obj.previous_page_number }}">
+        <i class="bi bi-chevron-left"></i>
+      </a>
+    </li>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+      {% if page_obj.number == num %}
+        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+      {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+        <li class="page-item">
+          <a class="page-link" href="?{% if q %}q={{ q }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ num }}">{{ num }}</a>
+        </li>
+      {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="?{% if q %}q={{ q }}&{% endif %}{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}page={{ page_obj.next_page_number }}">
+        <i class="bi bi-chevron-right"></i>
+      </a>
+    </li>
+    {% endif %}
+  </ul>
+  <div class="text-center text-muted" style="font-size:12px;">
+    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} &nbsp;·&nbsp; {{ page_obj.paginator.count }} total records
+  </div>
+</nav>
+{% endif %}

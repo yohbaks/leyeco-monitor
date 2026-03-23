@@ -1,0 +1,41 @@
+{% extends "base/base.html" %}
+{% block title %}Adjust Stock · RTW{% endblock %}
+{% block page_title %}RTW · Adjust Stock{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        Adjust Stock
+        <a href="{% url 'rtw:product_list' %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left"></i> Back
+        </a>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-secondary mb-4">
+          <strong>{{ product }}</strong><br>
+          <span class="text-muted">Current stock: <strong>{{ product.stock_quantity }}</strong></span>
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-medium">{{ form.adjustment.label }}</label>
+            {{ form.adjustment }}
+            <div class="form-text">{{ form.adjustment.help_text }}</div>
+            {% if form.adjustment.errors %}<div class="text-danger small mt-1">{{ form.adjustment.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-medium">{{ form.reason.label }}</label>
+            {{ form.reason }}
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Update Stock</button>
+            <a href="{% url 'rtw:product_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

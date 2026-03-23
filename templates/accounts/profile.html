@@ -1,0 +1,147 @@
+{% extends "base/base.html" %}
+{% block title %}My Profile — LEYECO Monitor{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+
+    <!-- Profile card -->
+    <div class="card mb-4">
+      <div class="card-body text-center p-4">
+        <div style="width:72px;height:72px;border-radius:50%;background:#0d6efd;
+                    display:flex;align-items:center;justify-content:center;
+                    font-size:26px;font-weight:700;color:#fff;margin:0 auto 16px;">
+          {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
+        </div>
+        <div style="font-size:18px;font-weight:700;">
+          {{ request.user.get_full_name|default:request.user.username }}
+        </div>
+        <div class="mt-1">
+          <span class="badge rounded-pill px-3 py-1"
+                style="background:#ede9fe;color:#5b21b6;font-size:12px;">
+            {{ request.user.get_role_display }}
+          </span>
+        </div>
+        <div style="font-size:13px;color:#6b7280;margin-top:10px;">
+          <i class="bi bi-building me-1"></i>{{ request.user.branch|default:"—" }}
+        </div>
+        {% if request.user.employee_id %}
+        <div style="font-size:12px;color:#9ca3af;margin-top:4px;">
+          ID: {{ request.user.employee_id }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Account details -->
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-person me-2"></i>Account Details</div>
+      <div class="card-body" style="font-size:13.5px;">
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span style="color:#6b7280;">Username</span>
+          <span style="font-weight:500;font-family:var(--font-mono);font-size:13px;">{{ request.user.username }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span style="color:#6b7280;">Email</span>
+          <span>{{ request.user.email|default:"—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom">
+          <span style="color:#6b7280;">Last login</span>
+          <span style="font-size:12px;">{{ request.user.last_login|date:"M d, Y g:i A"|default:"—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2">
+          <span style="color:#6b7280;">Member since</span>
+          <span style="font-size:12px;">{{ request.user.date_joined|date:"M d, Y" }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-gear me-2"></i>Account Actions</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <a href="{% url 'accounts:change_password' %}" class="btn btn-outline-primary">
+          <i class="bi bi-key me-2"></i>Change Password
+        </a>
+        <a href="{% url 'accounts:logout' %}" class="btn btn-outline-danger">
+          <i class="bi bi-box-arrow-left me-2"></i>Sign Out
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="col-lg-8">
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+      <div class="col-4">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Transactions</div>
+          <div class="kpi-value">{{ stats.total_txns|default:0 }}</div>
+          <div class="kpi-sub">All time</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Collected</div>
+          <div class="kpi-value" style="font-size:18px;">₱{{ stats.total_collected|default:0|floatformat:2 }}</div>
+          <div class="kpi-sub">All time</div>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="kpi-card">
+          <div class="kpi-label">Fees Processed</div>
+          <div class="kpi-value" style="font-size:18px;color:#16a34a;">₱{{ stats.total_fees|default:0|floatformat:2 }}</div>
+          <div class="kpi-sub">All time</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent transactions -->
+    <div class="card">
+      <div class="card-header"><i class="bi bi-clock-history me-2"></i>My Recent Transactions</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Ref #</th>
+                <th>Biller</th>
+                <th class="text-end">Total</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in recent %}
+              <tr>
+                <td class="ps-3 txn-ref" style="font-size:11px;">{{ p.txn_number }}</td>
+                <td style="font-weight:500;font-size:13px;">{{ p.biller_name }}</td>
+                <td class="text-end" style="font-weight:600;">₱{{ p.total_due|floatformat:2 }}</td>
+                <td style="font-size:12px;color:#6b7280;">{{ p.created_at|date:"M d, g:i A" }}</td>
+                <td>
+                  {% if p.status == 'completed' %}
+                    <span class="badge badge-completed rounded-pill px-2">Done</span>
+                  {% elif p.status == 'voided' %}
+                    <span class="badge badge-voided rounded-pill px-2">Voided</span>
+                  {% else %}
+                    <span class="badge badge-pending rounded-pill px-2">Pending</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5" class="text-center py-4 text-muted">No transactions yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

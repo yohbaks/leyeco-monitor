@@ -1,0 +1,131 @@
+{% extends "base/base.html" %}
+{% block title %}Shifts — LEYECO Monitor{% endblock %}
+{% block page_title %}Shift Management{% endblock %}
+
+{% block content %}
+
+<!-- Open shift banner for teller -->
+{% if request.user.is_teller %}
+  {% if open_shift %}
+    <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+      <div>
+        <i class="bi bi-circle-fill me-2" style="color:#16a34a;font-size:10px;"></i>
+        <strong>Shift is open</strong> — started at {{ open_shift.opened_at|time:"g:i A" }}
+        with ₱{{ open_shift.opening_cash|floatformat:2 }} opening cash.
+      </div>
+      <a href="{% url 'shifts:close' open_shift.pk %}" class="btn btn-warning btn-sm">
+        <i class="bi bi-lock me-1"></i>Close My Shift
+      </a>
+    </div>
+  {% else %}
+    <div class="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+      <div>
+        <i class="bi bi-exclamation-circle me-2"></i>
+        <strong>No open shift today.</strong> Open your shift before recording payments.
+      </div>
+      <a href="{% url 'shifts:open' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-play-circle me-1"></i>Open Shift
+      </a>
+    </div>
+  {% endif %}
+{% endif %}
+
+<!-- Admin/Manager open shift button -->
+{% if request.user.is_admin_or_manager %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div style="font-size:13px;color:#6b7280;">{{ shifts|length }} shift record{{ shifts|length|pluralize }}</div>
+  <a href="{% url 'shifts:open' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-circle me-1"></i>Open New Shift
+  </a>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">Date</th>
+            {% if request.user.is_admin_or_manager %}<th>Teller</th>{% endif %}
+            <th>Opened At</th>
+            <th class="text-end">Opening Cash</th>
+            <th class="text-end">Transactions</th>
+            <th class="text-end">Collected</th>
+            <th class="text-end">Expected</th>
+            <th class="text-end">Declared</th>
+            <th class="text-end">Discrepancy</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for shift in shifts %}
+          <tr>
+            <td class="ps-3" style="font-weight:500;">{{ shift.date|date:"M d, Y" }}</td>
+            {% if request.user.is_admin_or_manager %}
+            <td style="font-size:13px;">{{ shift.teller.get_full_name|default:shift.teller.username }}</td>
+            {% endif %}
+            <td style="font-size:12px;color:#6b7280;">{{ shift.opened_at|time:"g:i A" }}</td>
+            <td class="text-end">₱{{ shift.opening_cash|floatformat:2 }}</td>
+            <td class="text-end">
+              {% if shift.status == 'closed' %}{{ shift.total_transactions }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+              {% if shift.status == 'closed' %}₱{{ shift.total_collected|floatformat:2 }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+              {% if shift.status == 'closed' %}₱{{ shift.expected_cash|floatformat:2 }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end">
+              {% if shift.status == 'closed' %}₱{{ shift.closing_cash|floatformat:2 }}{% else %}—{% endif %}
+            </td>
+            <td class="text-end fw-600">
+              {% if shift.status == 'closed' %}
+                <span style="color:{% if shift.discrepancy < 0 %}#dc2626{% elif shift.discrepancy > 0 %}#16a34a{% else %}#6b7280{% endif %};">
+                  {% if shift.discrepancy > 0 %}+{% endif %}₱{{ shift.discrepancy|floatformat:2 }}
+                </span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if shift.status == 'open' %}
+                <span class="badge badge-completed rounded-pill px-2">
+                  <i class="bi bi-circle-fill me-1" style="font-size:7px;"></i>Open
+                </span>
+              {% else %}
+                <span class="badge" style="background:#f3f4f6;color:#374151;border-radius:20px;padding:3px 10px;font-size:12px;">
+                  Closed
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'shifts:detail' shift.pk %}"
+                   class="btn btn-xs btn-outline-secondary" style="font-size:11px;padding:2px 8px;">
+                  View
+                </a>
+                {% if shift.status == 'open' and shift.teller == request.user or shift.status == 'open' and request.user.is_admin_or_manager %}
+                <a href="{% url 'shifts:close' shift.pk %}"
+                   class="btn btn-xs btn-outline-warning" style="font-size:11px;padding:2px 8px;">
+                  Close
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="11" class="text-center py-5 text-muted">
+              <i class="bi bi-clock" style="font-size:28px;display:block;margin-bottom:8px;opacity:.4;"></i>
+              No shifts recorded yet.
+              <br>
+              <a href="{% url 'shifts:open' %}" class="btn btn-primary btn-sm mt-3">Open First Shift</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
