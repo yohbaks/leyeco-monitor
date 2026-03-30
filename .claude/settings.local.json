@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 root@45.8.224.89 \"echo connected && uname -a && python3 --version && nginx -v\")"
+    ]
+  }
+}
