@@ -11,5 +11,6 @@ urlpatterns = [
     path('settings/',     include('settings_app.urls', namespace='settings_app')),
     path('backup/',       include('backup.urls',       namespace='backup')),
     path('rtw/',          include('rtw.urls',           namespace='rtw')),
+    path('gcash/',        include('gcash.urls',         namespace='gcash')),
     path('',              include('dashboard.urls',    namespace='dashboard')),
 ]

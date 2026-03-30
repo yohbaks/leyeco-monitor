@@ -1,0 +1,163 @@
+{% extends "base/base.html" %}
+{% block title %}GCash Reports{% endblock %}
+{% block page_title %}GCash Reports{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">FROM</label>
+        <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">TO</label>
+        <input type="date" name="date_to" value="{{ filters.date_to }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">TYPE</label>
+        <select name="type" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="cash_in"  {% if filters.type == 'cash_in' %}selected{% endif %}>Cash-In</option>
+          <option value="cash_out" {% if filters.type == 'cash_out' %}selected{% endif %}>Cash-Out</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">STAFF</label>
+        <select name="staff" class="form-select form-select-sm">
+          <option value="">All Staff</option>
+          {% for s in staff_list %}
+          <option value="{{ s.pk }}" {% if filters.staff == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Generate</button>
+        <a href="?date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&type={{ filters.type }}&staff={{ filters.staff }}&export=excel" class="btn btn-success btn-sm"><i class="bi bi-file-earmark-excel"></i> Excel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Summary KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value">{{ summary.count|default:0 }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Cash-In</div>
+      <div class="kpi-value" style="font-size:18px;color:#059669;">{{ summary.cash_in_count|default:0 }}</div>
+      <div class="kpi-sub">&#8369;{{ summary.total_cash_in|floatformat:2|default:"0.00" }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="kpi-card">
+      <div class="kpi-label">Cash-Out</div>
+      <div class="kpi-value" style="font-size:18px;color:#2563eb;">{{ summary.cash_out_count|default:0 }}</div>
+      <div class="kpi-sub">&#8369;{{ summary.total_cash_out|floatformat:2|default:"0.00" }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Volume</div>
+      <div class="kpi-value" style="font-size:18px;">
+        &#8369;{% if summary.total_cash_in and summary.total_cash_out %}{{ summary.total_cash_in|add:summary.total_cash_out|floatformat:2 }}{% elif summary.total_cash_in %}{{ summary.total_cash_in|floatformat:2 }}{% elif summary.total_cash_out %}{{ summary.total_cash_out|floatformat:2 }}{% else %}0.00{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card" style="border-color:#fbbf24;">
+      <div class="kpi-label">Total Fees Earned</div>
+      <div class="kpi-value" style="color:#d97706;">&#8369;{{ summary.total_fees|floatformat:2|default:"0.00" }}</div>
+      <div class="kpi-sub">Profit / Revenue</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Daily Breakdown -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Daily Breakdown</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr>
+            <th>Date</th><th>Transactions</th><th>Volume</th><th>Fees</th>
+          </tr></thead>
+          <tbody>
+          {% for row in daily %}
+            <tr>
+              <td>{{ row.day|date:"M d, Y" }}</td>
+              <td>{{ row.count }}</td>
+              <td>&#8369;{{ row.total_amount|floatformat:2 }}</td>
+              <td style="color:#d97706;font-weight:600;">&#8369;{{ row.total_fees|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">No data for selected range.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staff Breakdown -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Staff Performance</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Staff</th><th>Count</th><th>Volume</th><th>Fees</th></tr></thead>
+          <tbody>
+          {% for row in staff_breakdown %}
+            <tr>
+              <td>{{ row.processed_by__username }}</td>
+              <td>{{ row.count }}</td>
+              <td>&#8369;{{ row.total_amount|floatformat:2 }}</td>
+              <td style="color:#d97706;font-weight:600;">&#8369;{{ row.total_fees|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">No data.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction List -->
+{% if transactions %}
+<div class="card mt-3">
+  <div class="card-header">Transaction Details (up to 500)</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>#</th><th>TXN</th><th>Date</th><th>Type</th><th>Amount</th><th>Fee</th><th>Customer</th><th>Reference</th><th>Staff</th></tr></thead>
+      <tbody>
+      {% for txn in transactions %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td><span class="txn-ref">{{ txn.txn_number }}</span></td>
+          <td style="font-size:11px;color:#6b7280;">{{ txn.created_at|date:"M d g:i A" }}</td>
+          <td>
+            {% if txn.txn_type == 'cash_in' %}<span class="badge" style="background:#d1fae5;color:#065f46;">CI</span>
+            {% else %}<span class="badge" style="background:#dbeafe;color:#1e40af;">CO</span>{% endif %}
+          </td>
+          <td>&#8369;{{ txn.amount|floatformat:2 }}</td>
+          <td style="color:#d97706;">&#8369;{{ txn.service_fee|floatformat:2 }}</td>
+          <td>{{ txn.customer_name|default:"—" }}</td>
+          <td><span class="txn-ref">{{ txn.reference_number|default:"—" }}</span></td>
+          <td>{{ txn.processed_by.username }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

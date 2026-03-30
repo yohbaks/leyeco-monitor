@@ -1,0 +1,139 @@
+{% extends "base/base.html" %}
+{% block title %}{{ action }} GCash Transaction{% endblock %}
+{% block page_title %}{{ action }} GCash Transaction{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Transaction Details</div>
+      <div class="card-body">
+        <form method="post" id="gcashForm">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Transaction Type <span class="text-danger">*</span></label>
+            {{ form.txn_type }}
+            {% if form.txn_type.errors %}<div class="text-danger small mt-1">{{ form.txn_type.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Amount (&#8369;) <span class="text-danger">*</span></label>
+            {{ form.amount }}
+            {% if form.amount.errors %}<div class="text-danger small mt-1">{{ form.amount.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              Service Fee (&#8369;)
+              <span class="badge bg-warning text-dark ms-1" style="font-size:10px;">Auto-computed</span>
+            </label>
+            {{ form.service_fee }}
+            <div class="form-text">Auto-calculated at &#8369;{{ cfg.fee_per_1000 }}/&#8369;1,000. You may override manually.</div>
+            {% if form.service_fee.errors %}<div class="text-danger small mt-1">{{ form.service_fee.errors.0 }}</div>{% endif %}
+          </div>
+
+          <hr>
+
+          <div class="mb-3">
+            <label class="form-label">Customer Name <span class="text-muted">(optional)</span></label>
+            {{ form.customer_name }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">GCash Reference No. <span class="text-muted">(optional)</span></label>
+            {{ form.reference_number }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Notes <span class="text-muted">(optional)</span></label>
+            {{ form.notes }}
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save Transaction</button>
+            <a href="{% url 'gcash:transaction_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Panel -->
+  <div class="col-lg-5">
+    <div class="summary-panel">
+      <div style="font-size:13px;font-weight:600;color:rgba(255,255,255,.7);margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em;">Transaction Summary</div>
+
+      <div class="s-row">
+        <span class="s-label">Type</span>
+        <span class="s-val" id="sum_type">—</span>
+      </div>
+      <div class="s-row">
+        <span class="s-label">Amount</span>
+        <span class="s-val" id="sum_amount">&#8369;0.00</span>
+      </div>
+      <div class="s-row">
+        <span class="s-label">Service Fee</span>
+        <span class="s-val s-fee" id="sum_fee">&#8369;0.00</span>
+      </div>
+      <div class="s-row" style="border-bottom:none;padding-top:12px;">
+        <span class="s-label" style="font-weight:600;color:#fff;">Customer Pays / Receives</span>
+        <span class="s-change" id="sum_net">&#8369;0.00</span>
+      </div>
+
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,.1);font-size:11px;color:rgba(255,255,255,.4);">
+        Cash-In: customer pays Amount + Fee<br>
+        Cash-Out: customer receives Amount &minus; Fee
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body" style="font-size:12px;color:#6b7280;">
+        <strong>Fee Formula:</strong><br>
+        Service Fee = (Amount &divide; 1,000) &times; &#8369;{{ cfg.fee_per_1000 }}
+        {% if cfg.apply_rounding %}<br><span class="text-success">Rounding enabled</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const amountInput = document.getElementById('id_amount');
+const feeInput    = document.getElementById('id_service_fee');
+const typeSelect  = document.querySelector('[name="txn_type"]');
+
+function fmt(n) { return '\u20b1' + parseFloat(n || 0).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function updateSummary() {
+  const amount = parseFloat(amountInput.value) || 0;
+  const fee    = parseFloat(feeInput.value)    || 0;
+  const type   = typeSelect.value;
+
+  document.getElementById('sum_type').textContent   = type === 'cash_in' ? 'Cash-In' : type === 'cash_out' ? 'Cash-Out' : '—';
+  document.getElementById('sum_amount').textContent = fmt(amount);
+  document.getElementById('sum_fee').textContent    = fmt(fee);
+
+  const net = type === 'cash_in' ? amount + fee : amount - fee;
+  document.getElementById('sum_net').textContent = fmt(net);
+}
+
+async function autoFee() {
+  const amount = parseFloat(amountInput.value) || 0;
+  if (amount <= 0) return;
+  const r = await fetch(`{% url 'gcash:fee_api' %}?amount=${amount}`);
+  const d = await r.json();
+  feeInput.value = d.fee;
+  updateSummary();
+}
+
+amountInput.addEventListener('blur',  autoFee);
+amountInput.addEventListener('input', updateSummary);
+feeInput.addEventListener('input',    updateSummary);
+typeSelect.addEventListener('change', updateSummary);
+
+// Init
+updateSummary();
+</script>
+{% endblock %}

@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'axes',
     'backup',
     'rtw',
+    'gcash',
 ]
 
 MIDDLEWARE = [

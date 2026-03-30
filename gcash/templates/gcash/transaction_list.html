@@ -1,0 +1,145 @@
+{% extends "base/base.html" %}
+{% block title %}GCash Transactions{% endblock %}
+{% block page_title %}GCash Transactions{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">TYPE</label>
+        <select name="type" class="form-select form-select-sm">
+          <option value="">All Types</option>
+          <option value="cash_in"  {% if filters.type == 'cash_in' %}selected{% endif %}>Cash-In</option>
+          <option value="cash_out" {% if filters.type == 'cash_out' %}selected{% endif %}>Cash-Out</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">STATUS</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="completed" {% if filters.status == 'completed' %}selected{% endif %}>Completed</option>
+          <option value="voided"    {% if filters.status == 'voided' %}selected{% endif %}>Voided</option>
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">FROM</label>
+        <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">TO</label>
+        <input type="date" name="date_to" value="{{ filters.date_to }}" class="form-control form-control-sm">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label mb-1" style="font-size:11px;font-weight:600;color:#6b7280;">STAFF</label>
+        <select name="staff" class="form-select form-select-sm">
+          <option value="">All Staff</option>
+          {% for s in staff_list %}
+          <option value="{{ s.pk }}" {% if filters.staff == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2 d-flex gap-1">
+        <input type="text" name="q" value="{{ filters.q }}" placeholder="Search…" class="form-control form-control-sm">
+        <button type="submit" class="btn btn-primary btn-sm px-3"><i class="bi bi-search"></i></button>
+        <a href="{% url 'gcash:transaction_list' %}" class="btn btn-outline-secondary btn-sm px-2"><i class="bi bi-x"></i></a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Totals -->
+{% if totals.count %}
+<div class="row g-2 mb-3">
+  <div class="col-auto">
+    <div class="kpi-card py-2 px-3">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value" style="font-size:20px;">{{ totals.count }}</div>
+    </div>
+  </div>
+  <div class="col-auto">
+    <div class="kpi-card py-2 px-3">
+      <div class="kpi-label">Total Amount</div>
+      <div class="kpi-value" style="font-size:20px;">&#8369;{{ totals.total_amount|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col-auto">
+    <div class="kpi-card py-2 px-3">
+      <div class="kpi-label">Total Fees</div>
+      <div class="kpi-value" style="font-size:20px;color:#d97706;">&#8369;{{ totals.total_fees|floatformat:2 }}</div>
+    </div>
+  </div>
+  <div class="col ms-auto d-flex align-items-center justify-content-end">
+    <a href="{% url 'gcash:transaction_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New Transaction</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Table -->
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr>
+        <th>TXN #</th>
+        <th>Date & Time</th>
+        <th>Type</th>
+        <th>Amount</th>
+        <th>Fee</th>
+        <th>Customer</th>
+        <th>Reference</th>
+        <th>Staff</th>
+        <th>Status</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      {% for txn in page %}
+        <tr>
+          <td><span class="txn-ref">{{ txn.txn_number }}</span></td>
+          <td style="font-size:12px;color:#6b7280;">{{ txn.created_at|date:"M d, Y g:i A" }}</td>
+          <td>
+            {% if txn.txn_type == 'cash_in' %}
+              <span class="badge" style="background:#d1fae5;color:#065f46;">Cash-In</span>
+            {% else %}
+              <span class="badge" style="background:#dbeafe;color:#1e40af;">Cash-Out</span>
+            {% endif %}
+          </td>
+          <td class="fw-semibold">&#8369;{{ txn.amount|floatformat:2 }}</td>
+          <td style="color:#d97706;font-weight:600;">&#8369;{{ txn.service_fee|floatformat:2 }}</td>
+          <td>{{ txn.customer_name|default:"—" }}</td>
+          <td><span class="txn-ref">{{ txn.reference_number|default:"—" }}</span></td>
+          <td>{{ txn.processed_by.username }}</td>
+          <td>
+            {% if txn.status == 'completed' %}
+              <span class="badge badge-completed">Completed</span>
+            {% else %}
+              <span class="badge badge-voided">Voided</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'gcash:transaction_detail' txn.pk %}" class="btn btn-outline-secondary btn-sm" style="font-size:11px;">View</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="10" class="text-center text-muted py-5">No transactions found.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Pagination -->
+{% if page.has_other_pages %}
+<nav class="mt-3">
+  <ul class="pagination pagination-sm justify-content-center mb-0">
+    {% if page.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&type={{ filters.type }}&status={{ filters.status }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&staff={{ filters.staff }}&q={{ filters.q }}">&laquo;</a></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ page.number }} of {{ page.paginator.num_pages }}</span></li>
+    {% if page.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&type={{ filters.type }}&status={{ filters.status }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}&staff={{ filters.staff }}&q={{ filters.q }}">&raquo;</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}

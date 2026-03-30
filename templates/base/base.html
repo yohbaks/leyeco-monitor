@@ -180,6 +180,26 @@
       <i class="bi bi-clock-history"></i> My Shifts
     </a>
 
+    <div class="nav-section-label">GCash Exchange</div>
+    <a href="{% url 'gcash:dashboard' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'gcash' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-phone"></i> GCash Dashboard
+    </a>
+    <a href="{% url 'gcash:transaction_create' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'gcash' and request.resolver_match.url_name == 'transaction_create' %}active{% endif %}">
+      <i class="bi bi-plus-circle"></i> New GCash Txn
+    </a>
+    <a href="{% url 'gcash:transaction_list' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'gcash' and request.resolver_match.url_name == 'transaction_list' %}active{% endif %}">
+      <i class="bi bi-list-ul"></i> GCash History
+    </a>
+    {% if request.user.is_admin_or_manager %}
+    <a href="{% url 'gcash:reports' %}"
+       class="nav-link {% if request.resolver_match.app_name == 'gcash' and request.resolver_match.url_name == 'reports' %}active{% endif %}">
+      <i class="bi bi-graph-up-arrow"></i> GCash Reports
+    </a>
+    {% endif %}
+
     <div class="nav-section-label">RTW Sales</div>
     <a href="{% url 'rtw:dashboard' %}"
        class="nav-link {% if request.resolver_match.app_name == 'rtw' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}">

@@ -1,0 +1,83 @@
+{% extends "base/base.html" %}
+{% block title %}GCash Fee Settings{% endblock %}
+{% block page_title %}GCash Fee Settings{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header fw-semibold"><i class="bi bi-gear"></i> GCash Service Fee Configuration</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Fee per &#8369;1,000</label>
+            {{ form.fee_per_1000 }}
+            <div class="form-text">Amount charged per &#8369;1,000 transacted. Example: &#8369;20 means a &#8369;5,000 transaction charges &#8369;100 fee.</div>
+            {% if form.fee_per_1000.errors %}<div class="text-danger small mt-1">{{ form.fee_per_1000.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div class="mb-4">
+            <div class="form-check">
+              {{ form.apply_rounding }}
+              <label class="form-check-label" for="{{ form.apply_rounding.id_for_label }}">
+                Apply rounding to computed fee
+              </label>
+            </div>
+            <div class="form-text ms-4">When enabled, fees are rounded to the nearest peso. Example: &#8369;22.50 &rarr; &#8369;23.</div>
+          </div>
+
+          <!-- Live Preview -->
+          <div class="card mb-4" style="background:#f9fafb;">
+            <div class="card-body">
+              <div class="fw-semibold mb-2" style="font-size:13px;">Live Fee Preview</div>
+              <div class="d-flex gap-2 align-items-center mb-2">
+                <input type="number" id="previewAmount" class="form-control form-control-sm" style="width:140px;" placeholder="Amount" value="1000" min="1" step="100">
+                <span style="font-size:13px;color:#6b7280;">&rarr; Fee:</span>
+                <span id="previewFee" class="fw-bold" style="color:#d97706;font-size:16px;">&#8369;20.00</span>
+              </div>
+              <div style="font-size:11px;color:#9ca3af;">Formula: (Amount &divide; 1,000) &times; fee_per_1000</div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save Settings</button>
+          <a href="{% url 'gcash:dashboard' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">Current Configuration</div>
+      <div class="card-body">
+        <p class="mb-1"><strong>Fee per &#8369;1,000:</strong> &#8369;{{ cfg.fee_per_1000 }}</p>
+        <p class="mb-1"><strong>Rounding:</strong> {% if cfg.apply_rounding %}<span class="text-success">Enabled</span>{% else %}<span class="text-muted">Disabled</span>{% endif %}</p>
+        {% if cfg.updated_by %}<p class="mb-0 text-muted" style="font-size:12px;">Last updated by {{ cfg.updated_by.username }} on {{ cfg.updated_at|date:"M d, Y g:i A" }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const feeInput    = document.getElementById('id_fee_per_1000');
+const roundCheck  = document.getElementById('id_apply_rounding');
+const previewAmt  = document.getElementById('previewAmount');
+const previewFee  = document.getElementById('previewFee');
+
+function calcPreview() {
+  const amount  = parseFloat(previewAmt.value) || 0;
+  const feeRate = parseFloat(feeInput.value)   || 0;
+  let fee = (amount / 1000) * feeRate;
+  if (roundCheck.checked) fee = Math.round(fee);
+  else fee = Math.round(fee * 100) / 100;
+  previewFee.textContent = '\u20b1' + fee.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+feeInput.addEventListener('input',   calcPreview);
+roundCheck.addEventListener('change', calcPreview);
+previewAmt.addEventListener('input',  calcPreview);
+calcPreview();
+</script>
+{% endblock %}

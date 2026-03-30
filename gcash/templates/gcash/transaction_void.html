@@ -1,0 +1,38 @@
+{% extends "base/base.html" %}
+{% block title %}Void Transaction{% endblock %}
+{% block page_title %}Void GCash Transaction{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="card border-danger">
+      <div class="card-header text-danger fw-semibold"><i class="bi bi-exclamation-triangle"></i> Confirm Void</div>
+      <div class="card-body">
+        <div class="alert alert-warning">
+          You are about to void transaction <strong>{{ txn.txn_number }}</strong>.<br>
+          This action cannot be undone.
+        </div>
+
+        <table class="table table-sm mb-3">
+          <tr><td class="text-muted">Type</td><td>{{ txn.get_txn_type_display }}</td></tr>
+          <tr><td class="text-muted">Amount</td><td>&#8369;{{ txn.amount|floatformat:2 }}</td></tr>
+          <tr><td class="text-muted">Fee</td><td>&#8369;{{ txn.service_fee|floatformat:2 }}</td></tr>
+          <tr><td class="text-muted">Customer</td><td>{{ txn.customer_name|default:"—" }}</td></tr>
+        </table>
+
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Void Reason <span class="text-danger">*</span></label>
+            <textarea name="void_reason" class="form-control" rows="3" placeholder="Explain why this transaction is being voided…" required></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger"><i class="bi bi-x-circle"></i> Void Transaction</button>
+            <a href="{% url 'gcash:transaction_detail' txn.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

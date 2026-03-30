@@ -1,0 +1,154 @@
+{% extends "base/base.html" %}
+{% block title %}GCash Exchange — Dashboard{% endblock %}
+{% block page_title %}GCash Exchange{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  .type-badge-cash_in  { background:#d1fae5; color:#065f46; }
+  .type-badge-cash_out { background:#dbeafe; color:#1e40af; }
+  .period-btn { font-size:12px; padding:4px 14px; border-radius:20px; border:1.5px solid #d1d5db; background:#fff; color:#374151; cursor:pointer; font-weight:500; transition:all .12s; }
+  .period-btn.active { background:#0d6efd; border-color:#0d6efd; color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h5 class="mb-0 fw-semibold">GCash Exchange Dashboard</h5>
+    <div style="font-size:12px;color:#6b7280;">Fee: &#8369;{{ cfg.fee_per_1000 }} per &#8369;1,000{% if cfg.apply_rounding %} &middot; Rounding ON{% endif %}</div>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-1">
+      <a href="?period=daily"   class="period-btn {% if period == 'daily' %}active{% endif %}">Daily</a>
+      <a href="?period=weekly"  class="period-btn {% if period == 'weekly' %}active{% endif %}">Weekly</a>
+      <a href="?period=monthly" class="period-btn {% if period == 'monthly' %}active{% endif %}">Monthly</a>
+    </div>
+    <a href="{% url 'gcash:transaction_create' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New Transaction</a>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Cash-In</div>
+      <div class="kpi-value" style="color:#059669;">&#8369;{{ total_cash_in|floatformat:2 }}</div>
+      <div class="kpi-sub">{{ cash_in_count }} transaction{{ cash_in_count|pluralize }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Cash-Out</div>
+      <div class="kpi-value" style="color:#2563eb;">&#8369;{{ total_cash_out|floatformat:2 }}</div>
+      <div class="kpi-sub">{{ cash_out_count }} transaction{{ cash_out_count|pluralize }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Service Fees Earned</div>
+      <div class="kpi-value" style="color:#d97706;">&#8369;{{ total_fees|floatformat:2 }}</div>
+      <div class="kpi-sub">Revenue / profit</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value">{{ txn_count }}</div>
+      <div class="kpi-sub">{{ period|title }} total</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Chart -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>30-Day Fee Earnings</span>
+        <a href="{% url 'gcash:reports' %}" class="btn btn-outline-secondary btn-sm">Full Reports</a>
+      </div>
+      <div class="card-body">
+        <canvas id="feeChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">Quick Actions</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <a href="{% url 'gcash:transaction_create' %}" class="btn btn-success"><i class="bi bi-arrow-down-circle"></i> New Cash-In</a>
+        <a href="{% url 'gcash:transaction_create' %}" class="btn btn-primary"><i class="bi bi-arrow-up-circle"></i> New Cash-Out</a>
+        <a href="{% url 'gcash:transaction_list' %}"   class="btn btn-outline-secondary"><i class="bi bi-list-ul"></i> All Transactions</a>
+        {% if request.user.is_admin_or_manager %}
+        <a href="{% url 'gcash:reports' %}"    class="btn btn-outline-secondary"><i class="bi bi-file-earmark-bar-graph"></i> Reports</a>
+        {% endif %}
+        {% if request.user.is_admin %}
+        <a href="{% url 'gcash:settings' %}"   class="btn btn-outline-secondary"><i class="bi bi-gear"></i> Fee Settings</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Transactions -->
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between">
+    <span>Recent Transactions</span>
+    <a href="{% url 'gcash:transaction_list' %}" class="btn btn-sm btn-outline-secondary">View All</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr>
+        <th>TXN #</th><th>Type</th><th>Amount</th><th>Fee</th><th>Customer</th><th>Staff</th><th>Time</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for txn in recent %}
+        <tr>
+          <td><span class="txn-ref">{{ txn.txn_number }}</span></td>
+          <td><span class="badge type-badge-{{ txn.txn_type }}">{{ txn.get_txn_type_display }}</span></td>
+          <td class="fw-semibold">&#8369;{{ txn.amount|floatformat:2 }}</td>
+          <td style="color:#d97706;">&#8369;{{ txn.service_fee|floatformat:2 }}</td>
+          <td>{{ txn.customer_name|default:"—" }}</td>
+          <td>{{ txn.processed_by.username }}</td>
+          <td style="font-size:12px;color:#6b7280;">{{ txn.created_at|date:"g:i A" }}</td>
+          <td><a href="{% url 'gcash:transaction_detail' txn.pk %}" class="btn btn-xs btn-outline-secondary" style="font-size:11px;padding:2px 8px;">View</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No transactions yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ctx = document.getElementById('feeChart').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: {{ chart_labels|safe }},
+    datasets: [{
+      label: 'Service Fees (&#8369;)',
+      data: {{ chart_fees|safe }},
+      backgroundColor: 'rgba(217,119,6,0.15)',
+      borderColor: '#d97706',
+      borderWidth: 2,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { callback: v => '&#8369;' + v.toLocaleString() } },
+      x: { ticks: { maxTicksLimit: 10, font: { size: 11 } } }
+    }
+  }
+});
+</script>
+{% endblock %}
