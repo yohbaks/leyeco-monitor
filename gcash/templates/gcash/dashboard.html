@@ -133,7 +133,7 @@ new Chart(ctx, {
   data: {
     labels: {{ chart_labels|safe }},
     datasets: [{
-      label: 'Service Fees (&#8369;)',
+      label: 'Service Fees (\u20b1)',
       data: {{ chart_fees|safe }},
       backgroundColor: 'rgba(217,119,6,0.15)',
       borderColor: '#d97706',
@@ -145,7 +145,7 @@ new Chart(ctx, {
     responsive: true,
     plugins: { legend: { display: false } },
     scales: {
-      y: { beginAtZero: true, ticks: { callback: v => '&#8369;' + v.toLocaleString() } },
+      y: { beginAtZero: true, ticks: { callback: v => '\u20b1' + v.toLocaleString() } },
       x: { ticks: { maxTicksLimit: 10, font: { size: 11 } } }
     }
   }
